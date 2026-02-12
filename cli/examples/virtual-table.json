@@ -1,0 +1,5 @@
+{
+  "name": "orders_enriched",
+  "sql": "SELECT o.id as order_id, o.created_at, o.status, o.total_amount, c.id as customer_id, c.name as customer_name, c.email as customer_email, c.segment as customer_segment, c.region, COUNT(oi.id) as item_count, SUM(oi.quantity) as total_quantity FROM orders o JOIN customers c ON o.customer_id = c.id LEFT JOIN order_items oi ON o.id = oi.order_id GROUP BY o.id, o.created_at, o.status, o.total_amount, c.id, c.name, c.email, c.segment, c.region",
+  "ownerTenantFields": ["org_id"]
+}

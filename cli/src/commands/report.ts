@@ -1,0 +1,223 @@
+import { Command } from 'commander';
+import * as fs from 'fs/promises';
+import { getCurrentEnv } from '../core/config.js';
+import { requireAuth } from '../core/auth.js';
+import {
+  fetchDashboard,
+  fetchReport,
+  fetchReportInfo,
+  createReportRemote,
+  updateReportRemote,
+  deleteReportRemote,
+} from '../core/client.js';
+import { validateReport } from '../core/validator.js';
+import { ReportCreateInputSchema } from '../models/index.js';
+import { confirmDeletion } from '../utils/confirm.js';
+import { output, withErrorHandling } from '../output/formatter.js';
+import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
+import { fromZodError, networkError } from '../output/errors.js';
+
+export function registerReportCommands(program: Command): void {
+  const reportCmd = program
+    .command('report')
+    .description('Manage reports');
+
+  // List reports
+  reportCmd
+    .command('list')
+    .description('List reports for a dashboard')
+    .requiredOption('--dashboard <id>', 'Dashboard ID')
+    .action(withErrorHandling(async (options) => {
+      await requireAuth();
+      const env = await getCurrentEnv();
+      
+      const response = await fetchDashboard(options.dashboard);
+      
+      if (response.error) {
+        throw networkError(response.error);
+      }
+      
+      const data = response.data as Record<string, unknown> | undefined;
+      const sections = (data?.sections || []) as Record<string, unknown>[];
+      const reports: Record<string, unknown>[] = [];
+      
+      for (const section of sections) {
+        const items = (section.items || section.reports || []) as Record<string, unknown>[];
+        for (const item of items) {
+          reports.push({
+            id: item.id || item._id,
+            name: item.name,
+            dashboardId: options.dashboard,
+            chartType: item.chartType,
+            hasPivot: !!item.pivot,
+          });
+        }
+      }
+      
+      output(successList(reports, { source: 'remote', env }));
+    }));
+
+  // Show report
+  reportCmd
+    .command('show')
+    .description('Show report details')
+    .argument('<id>', 'Report ID')
+    .action(withErrorHandling(async (id) => {
+      await requireAuth();
+      const env = await getCurrentEnv();
+      const response = await fetchReportInfo(id);
+      
+      if (response.error) {
+        throw networkError(response.error);
+      }
+      
+      output(success(response.data, { source: 'remote', env }));
+    }));
+
+  // Create report
+  reportCmd
+    .command('create')
+    .description('Create a new report')
+    .requiredOption('--dashboard <id>', 'Dashboard ID')
+    .requiredOption('--file <path>', 'JSON file with report config')
+    .action(withErrorHandling(async (options) => {
+      await requireAuth();
+      const env = await getCurrentEnv();
+      
+      const content = await fs.readFile(options.file, 'utf-8');
+      const data = JSON.parse(content);
+      
+      // Validate input
+      const parseResult = ReportCreateInputSchema.safeParse(data);
+      if (!parseResult.success) {
+        throw fromZodError(parseResult.error);
+      }
+      
+      const response = await createReportRemote(options.dashboard, {
+        name: parseResult.data.name,
+        baseSql: parseResult.data.baseSql,
+        chartType: parseResult.data.chartType,
+        params: parseResult.data.params || [],
+        formatting: parseResult.data.formatting,
+        pivot: parseResult.data.pivot || null,
+        dateField: parseResult.data.dateField,
+        filterMap: parseResult.data.filterMap,
+        order: parseResult.data.order || 0,
+      });
+      
+      if (response.error) {
+        throw networkError(response.error);
+      }
+      
+      output(successCreated(response.data, { source: 'remote', env }));
+    }));
+
+  // Update report
+  reportCmd
+    .command('update')
+    .description('Update a report')
+    .argument('<id>', 'Report ID')
+    .requiredOption('--file <path>', 'JSON file with updates')
+    .action(withErrorHandling(async (id, options) => {
+      await requireAuth();
+      const env = await getCurrentEnv();
+      
+      const content = await fs.readFile(options.file, 'utf-8');
+      const updates = JSON.parse(content);
+      
+      const response = await updateReportRemote(id, updates);
+      
+      if (response.error) {
+        throw networkError(response.error);
+      }
+      
+      output(successUpdated(response.data, { source: 'remote', env }));
+    }));
+
+  // Delete report
+  reportCmd
+    .command('delete')
+    .description('Delete a report')
+    .argument('<id>', 'Report ID')
+    .option('--force', 'Skip confirmation')
+    .action(withErrorHandling(async (id, options) => {
+      await requireAuth();
+      const env = await getCurrentEnv();
+      
+      if (!options.force) {
+        const confirmed = await confirmDeletion('report', id);
+        if (!confirmed) {
+          output(success({ message: 'Deletion cancelled' }));
+          return;
+        }
+      }
+      
+      const response = await deleteReportRemote(id);
+      
+      if (response.error) {
+        throw networkError(response.error);
+      }
+      
+      output(successDeleted(id, 'report', { source: 'remote', env }));
+    }));
+
+  // Run report (execute query)
+  reportCmd
+    .command('run')
+    .description('Execute report query')
+    .argument('<id>', 'Report ID')
+    .option('--filters <path>', 'JSON file with filters')
+    .action(withErrorHandling(async (id, options) => {
+      await requireAuth();
+      const env = await getCurrentEnv();
+      
+      let filters;
+      if (options.filters) {
+        const content = await fs.readFile(options.filters, 'utf-8');
+        filters = JSON.parse(content);
+      }
+      
+      const response = await fetchReport(id, filters);
+      
+      if (response.error) {
+        throw networkError(response.error);
+      }
+      
+      const data = response.data as Record<string, unknown> | undefined;
+      const queries = response.queries as Record<string, unknown> | undefined;
+      const queryResults = (queries?.queryResults as Record<string, unknown>[] | undefined)?.[0];
+      
+      output(success({
+        reportId: id,
+        rows: queryResults?.rows || data?.rows || [],
+        fields: queryResults?.fields || data?.fields || [],
+        rowCount: queryResults?.rowCount || data?.rowCount || 0,
+      }, { source: 'remote', env }));
+    }));
+
+  // Validate report
+  reportCmd
+    .command('validate')
+    .description('Validate report configuration')
+    .argument('<id>', 'Report ID')
+    .action(withErrorHandling(async (id) => {
+      await requireAuth();
+      const env = await getCurrentEnv();
+      
+      // Fetch report data from remote, then validate
+      const response = await fetchReportInfo(id);
+      
+      if (response.error) {
+        throw networkError(response.error);
+      }
+      
+      const reportData = response.data as Record<string, unknown>;
+      const result = await validateReport(reportData);
+      
+      output(success({
+        valid: result.valid,
+        errors: result.errors,
+        warnings: result.warnings,
+      }, { source: 'remote', env }));
+    }));
+}

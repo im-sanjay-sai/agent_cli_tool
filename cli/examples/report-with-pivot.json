@@ -1,0 +1,40 @@
+{
+  "name": "Revenue by Product Category and Month",
+  "baseSql": "SELECT DATE_TRUNC('month', o.created_at) as month, p.category, SUM(oi.quantity * oi.unit_price) as revenue FROM orders o JOIN order_items oi ON o.id = oi.order_id JOIN products p ON oi.product_id = p.id WHERE o.status = 'completed' GROUP BY DATE_TRUNC('month', o.created_at), p.category ORDER BY month, category",
+  "chartType": "column",
+  "params": [
+    {
+      "name": "start_date",
+      "type": "date",
+      "source": "dashboardFilter:date_range"
+    }
+  ],
+  "formatting": {
+    "xAxisLabel": "Month",
+    "xAxisFormat": "MMM_yyyy",
+    "yAxisFields": [
+      {
+        "field": "revenue",
+        "label": "Revenue",
+        "format": "dollar_amount"
+      }
+    ],
+    "showLegend": true
+  },
+  "pivot": {
+    "rowField": "month",
+    "rowFieldType": "date",
+    "columnField": "category",
+    "columnFieldType": "string",
+    "aggregationType": "sum",
+    "valueField": "revenue",
+    "sort": true,
+    "sortDirection": "ASC",
+    "sortField": "month"
+  },
+  "dateField": {
+    "table": "orders",
+    "field": "created_at"
+  },
+  "order": 2
+}

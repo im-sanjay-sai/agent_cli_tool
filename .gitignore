@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Agent build output
+agent/.next/
+
+# Agent secrets
+agent/.env.local
+agent/.quill/
+
+# CLI build output
+cli/dist/
+cli/.quill/
+
+# Frontend (not part of this deployment)
+frontend/

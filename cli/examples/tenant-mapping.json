@@ -1,0 +1,18 @@
+{
+  "mappings": [
+    {
+      "id": "org_mapping",
+      "tenantField": "org_id",
+      "table": "organizations",
+      "column": "id",
+      "fieldType": "string"
+    },
+    {
+      "id": "team_mapping",
+      "tenantField": "team_id",
+      "table": "teams",
+      "column": "id",
+      "fieldType": "number"
+    }
+  ]
+}

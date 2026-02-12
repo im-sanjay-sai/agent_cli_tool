@@ -1,0 +1,32 @@
+{
+  "name": "Sales Analytics Dashboard",
+  "globalFilters": [
+    {
+      "id": "date_range",
+      "type": "date_range",
+      "field": "created_at",
+      "label": "Date Range",
+      "table": "orders"
+    },
+    {
+      "id": "region",
+      "type": "select",
+      "field": "region",
+      "label": "Region",
+      "table": "customers",
+      "allowedValues": ["North America", "Europe", "Asia Pacific", "Latin America"]
+    },
+    {
+      "id": "product_category",
+      "type": "multiselect",
+      "field": "category",
+      "label": "Product Category",
+      "table": "products"
+    }
+  ],
+  "layout": {
+    "columns": 2,
+    "rows": "auto"
+  },
+  "tenantKeys": ["org_id"]
+}

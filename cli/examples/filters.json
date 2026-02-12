@@ -1,0 +1,37 @@
+{
+  "globalFilters": [
+    {
+      "id": "date_range",
+      "type": "date_range",
+      "field": "created_at",
+      "label": "Date Range",
+      "table": "orders",
+      "default": {
+        "presetValue": "last_30_days"
+      }
+    },
+    {
+      "id": "status",
+      "type": "multiselect",
+      "field": "status",
+      "label": "Order Status",
+      "table": "orders",
+      "allowedValues": ["pending", "processing", "completed", "cancelled", "refunded"]
+    },
+    {
+      "id": "customer_segment",
+      "type": "select",
+      "field": "segment",
+      "label": "Customer Segment",
+      "table": "customers",
+      "allowedValues": ["Enterprise", "Mid-Market", "SMB", "Consumer"]
+    },
+    {
+      "id": "min_order_value",
+      "type": "number",
+      "field": "total_amount",
+      "label": "Minimum Order Value",
+      "table": "orders"
+    }
+  ]
+}
