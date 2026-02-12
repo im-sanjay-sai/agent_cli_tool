@@ -35,18 +35,23 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Detect port: Render sets PORT env var (usually 10000), default to 3000 for local dev
+APP_PORT="${PORT:-3000}"
+QUERY_ENDPOINT="http://localhost:${APP_PORT}/api/quill"
+
 # 1. Global config (~/.quill/config.json)
 GLOBAL_DIR="$HOME/.quill"
 GLOBAL_CONFIG="$GLOBAL_DIR/config.json"
 
 echo "Setting up Quill CLI config..."
+echo "  Using endpoint: $QUERY_ENDPOINT"
 mkdir -p "$GLOBAL_DIR"
 
 cat > "$GLOBAL_CONFIG" << EOF
 {
   "token": "local-dev-proxy",
   "defaultEnv": "staging",
-  "queryEndpoint": "http://localhost:3000/api/quill"
+  "queryEndpoint": "$QUERY_ENDPOINT"
 }
 EOF
 
@@ -61,11 +66,11 @@ mkdir -p "$PROJECT_DIR"
 cat > "$PROJECT_CONFIG" << EOF
 {
   "clientId": "$CLIENT_ID",
-  "queryEndpoint": "http://localhost:3000/api/quill",
+  "queryEndpoint": "$QUERY_ENDPOINT",
   "currentEnv": "staging"
 }
 EOF
 
 echo "  Created $PROJECT_CONFIG (clientId: $CLIENT_ID)"
 echo ""
-echo "Done! CLI will route requests through http://localhost:3000/api/quill"
+echo "Done! CLI will route requests through $QUERY_ENDPOINT"

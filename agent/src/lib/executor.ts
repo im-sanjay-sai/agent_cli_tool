@@ -125,9 +125,11 @@ export async function executeTool(
 
     const result = await runCli(cliArgs);
 
+    console.log(`[executor] ${commandStr} -> exit=${result.exitCode} stdout=${result.stdout.length}b stderr=${result.stderr.length}b`);
+
     return {
       success: result.exitCode === 0,
-      output: result.stdout || result.stderr || "No output",
+      output: result.stdout || result.stderr || JSON.stringify({ ok: false, error: { code: "NO_OUTPUT", message: "CLI returned no output", command: commandStr } }),
       command: commandStr,
       error: result.exitCode !== 0 ? result.stderr || undefined : undefined,
     };
@@ -155,6 +157,16 @@ function runCli(
         env: { ...process.env },
       },
       (error, stdout, stderr) => {
+        if (error && !stdout && !stderr) {
+          // execFile itself failed (e.g., binary not found, spawn error)
+          console.error(`[executor] execFile error:`, error.message);
+          resolve({
+            stdout: "",
+            stderr: error.message,
+            exitCode: (error as NodeJS.ErrnoException & { status?: number })?.status ?? 1,
+          });
+          return;
+        }
         const exitCode =
           (error as NodeJS.ErrnoException & { status?: number })?.status ?? 0;
         resolve({
