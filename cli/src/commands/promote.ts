@@ -18,18 +18,18 @@ export function registerPromoteCommands(program: Command): void {
   promoteCmd
     .command('dashboard')
     .description('Promote a dashboard to another environment')
-    .argument('<id>', 'Dashboard ID')
-    .requiredOption('--from <env>', 'Source environment')
-    .requiredOption('--to <env>', 'Target environment')
+    .argument('<name>', 'Dashboard name')
+    .requiredOption('--from <clientId>', 'Source environment client ID')
+    .requiredOption('--to <clientId>', 'Target environment client ID')
     .option('--auto-resolve', 'Automatically resolve conflicts (e.g. add missing tables)')
-    .action(withErrorHandling(async (id, options) => {
+    .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       
       if (options.from === options.to) {
         throw invalidInput('--from and --to must be different environments');
       }
       
-      const response = await promoteDashboardRemote(id, options.to, {
+      const response = await promoteDashboardRemote(name, options.from, options.to, {
         addMissingTables: options.autoResolve,
       });
       
@@ -40,7 +40,7 @@ export function registerPromoteCommands(program: Command): void {
       const data = response.data as Record<string, unknown> | undefined;
       output(success({
         promoted: true,
-        dashboardId: id,
+        dashboardName: name,
         from: options.from,
         to: options.to,
         ...(data || {}),
@@ -52,8 +52,9 @@ export function registerPromoteCommands(program: Command): void {
     .command('report')
     .description('Promote a report to another environment')
     .argument('<id>', 'Report ID')
-    .requiredOption('--from <env>', 'Source environment')
-    .requiredOption('--to <env>', 'Target environment')
+    .requiredOption('--dashboard <name>', 'Dashboard name the report belongs to')
+    .requiredOption('--from <clientId>', 'Source environment client ID')
+    .requiredOption('--to <clientId>', 'Target environment client ID')
     .action(withErrorHandling(async (id, options) => {
       await requireAuth();
       
@@ -61,7 +62,7 @@ export function registerPromoteCommands(program: Command): void {
         throw invalidInput('--from and --to must be different environments');
       }
       
-      const response = await promoteReportRemote(id, options.to);
+      const response = await promoteReportRemote(id, options.dashboard, options.from, options.to);
       
       if (response.error) {
         throw networkError(response.error);
@@ -81,17 +82,17 @@ export function registerPromoteCommands(program: Command): void {
   promoteCmd
     .command('vt')
     .description('Promote a virtual table to another environment')
-    .argument('<id>', 'Virtual table ID')
-    .requiredOption('--from <env>', 'Source environment')
-    .requiredOption('--to <env>', 'Target environment')
-    .action(withErrorHandling(async (id, options) => {
+    .argument('<name>', 'Virtual table name')
+    .requiredOption('--from <clientId>', 'Source environment client ID')
+    .requiredOption('--to <clientId>', 'Target environment client ID')
+    .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       
       if (options.from === options.to) {
         throw invalidInput('--from and --to must be different environments');
       }
       
-      const response = await promoteVTRemote(id, options.to);
+      const response = await promoteVTRemote(name, options.from, options.to);
       
       if (response.error) {
         throw networkError(response.error);
@@ -100,7 +101,7 @@ export function registerPromoteCommands(program: Command): void {
       const data = response.data as Record<string, unknown> | undefined;
       output(success({
         promoted: true,
-        virtualTableId: id,
+        virtualTableName: name,
         from: options.from,
         to: options.to,
         ...(data || {}),

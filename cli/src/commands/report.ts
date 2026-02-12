@@ -93,9 +93,12 @@ export function registerReportCommands(program: Command): void {
         throw fromZodError(parseResult.error);
       }
       
+      // Frontend uses 'query' and 'queryString' (not 'baseSql') for the SQL
+      const sql = parseResult.data.baseSql;
       const response = await createReportRemote(options.dashboard, {
         name: parseResult.data.name,
-        baseSql: parseResult.data.baseSql,
+        query: sql,
+        queryString: sql,
         chartType: parseResult.data.chartType,
         params: parseResult.data.params || [],
         formatting: parseResult.data.formatting,
@@ -103,6 +106,7 @@ export function registerReportCommands(program: Command): void {
         dateField: parseResult.data.dateField,
         filterMap: parseResult.data.filterMap,
         order: parseResult.data.order || 0,
+        useNewNodeSql: true,
       });
       
       if (response.error) {

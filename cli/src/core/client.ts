@@ -121,20 +121,31 @@ export async function fetchDashboards(): Promise<QuillResponse> {
   return quillFetch({ task: 'dashboards' });
 }
 
-export async function fetchDashboard(dashboardId: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'dashboard', metadata: { dashboardId } });
+// Frontend uses 'name' (dashboard name) to fetch, not an ID
+export async function fetchDashboard(dashboardName: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'dashboard', metadata: { name: dashboardName, useNewNodeSql: true } });
 }
 
-export async function editDashboard(dashboardId: string, updates: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'edit-dashboard', metadata: { dashboardId, ...updates } });
+// Frontend uses 'name' for the dashboard, with 'newDashboardName' for renames
+export async function editDashboard(dashboardName: string, updates: Record<string, unknown>): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'edit-dashboard',
+    metadata: {
+      name: dashboardName,
+      newDashboardName: (updates.newName || updates.name || dashboardName) as string,
+      ...updates,
+    },
+  });
 }
 
-export async function deleteDashboardRemote(dashboardId: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'delete-dashboard', metadata: { dashboardId } });
+// Frontend uses 'name' (dashboard name) not dashboardId
+export async function deleteDashboardRemote(name: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'delete-dashboard', metadata: { name } });
 }
 
-export async function setSectionOrder(dashboardId: string, sectionOrder: unknown[]): Promise<QuillResponse> {
-  return quillFetch({ task: 'set-section-order', metadata: { dashboardId, sectionOrder } });
+// Frontend uses dashboardName not dashboardId
+export async function setSectionOrder(dashboardName: string, sectionOrder: unknown[]): Promise<QuillResponse> {
+  return quillFetch({ task: 'set-section-order', metadata: { dashboardName, sectionOrder } });
 }
 
 // Report tasks
@@ -146,17 +157,19 @@ export async function fetchReportInfo(reportId: string): Promise<QuillResponse> 
   return quillFetch({ task: 'report-info', metadata: { reportId } });
 }
 
-export async function createReportRemote(dashboardId: string, report: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'create', metadata: { dashboardId, ...report } });
+// Frontend uses dashboardName for the create task
+export async function createReportRemote(dashboardName: string, report: Record<string, unknown>): Promise<QuillResponse> {
+  return quillFetch({ task: 'create', metadata: { dashboardName, ...report } });
 }
 
+// Frontend uses dashboardItemId not reportId
 export async function deleteReportRemote(reportId: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'delete', metadata: { reportId } });
+  return quillFetch({ task: 'delete', metadata: { dashboardItemId: reportId } });
 }
 
-// Virtual table tasks
+// Virtual table tasks -- frontend uses 'view' task with 'id' field
 export async function fetchVirtualTable(viewId: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'view', metadata: { viewId } });
+  return quillFetch({ task: 'view', metadata: { id: viewId, runQueryConfig: { getColumns: true }, useNewNodeSql: true } });
 }
 
 export async function createVirtualTableRemote(
@@ -175,8 +188,9 @@ export async function queryVirtualTable(view: string, databaseType?: string): Pr
   return quillFetch({ task: 'query-view', metadata: { view, databaseType } });
 }
 
-export async function testVirtualTable(view: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'test-view', metadata: { view } });
+// Frontend uses 'tables' array not 'view' string
+export async function testVirtualTable(tableName: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'test-view', metadata: { tables: [tableName] } });
 }
 
 // Query tasks
@@ -289,30 +303,44 @@ export async function fetchEnvironment(): Promise<QuillResponse> {
 }
 
 // Promotion tasks
+// Frontend uses dashboardName (not ID), fromClientId, toClientId
 export async function promoteDashboard(
-  dashboardId: string,
-  targetClientId: string,
-  options?: { addMissingTables?: boolean }
+  dashboardName: string,
+  fromClientId: string,
+  toClientId: string,
+  options?: { addMissingTables?: boolean; skipWarning?: boolean }
 ): Promise<QuillResponse> {
   return quillFetch({
     task: 'promote-dashboard',
-    metadata: { dashboardId, targetClientId, ...options },
+    metadata: { dashboardName, fromClientId, toClientId, ...options },
   });
 }
 
+// Frontend uses itemId (not reportId), dashboardName, fromClientId, toClientId
 export async function promoteReport(
-  reportId: string,
-  targetClientId: string,
-  options?: { addMissingTables?: boolean }
+  itemId: string,
+  dashboardName: string,
+  fromClientId: string,
+  toClientId: string,
+  options?: { addMissingTables?: boolean; skipWarning?: boolean }
 ): Promise<QuillResponse> {
   return quillFetch({
     task: 'promote-item',
-    metadata: { reportId, targetClientId, ...options },
+    metadata: { itemId, dashboardName, fromClientId, toClientId, ...options },
   });
 }
 
-export async function promoteVirtualTable(viewId: string, targetClientId: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'promote-view', metadata: { viewId, targetClientId } });
+// Frontend uses viewName (not viewId), fromClientId, toClientId
+export async function promoteVirtualTable(
+  viewName: string,
+  fromClientId: string,
+  toClientId: string,
+  options?: { skipWarning?: boolean }
+): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'promote-view',
+    metadata: { viewName, fromClientId, toClientId, ...options },
+  });
 }
 
 // Report builder tasks
@@ -358,28 +386,45 @@ export async function createDashboardRemote(config: Record<string, unknown>): Pr
   return quillFetch({ task: 'edit-dashboard', metadata: config });
 }
 
-// Report update
+// Report update -- frontend uses dashboardItemId for updates via 'create' task
 export async function updateReportRemote(reportId: string, updates: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'create', metadata: { reportId, ...updates } });
+  return quillFetch({ task: 'create', metadata: { dashboardItemId: reportId, reportId, ...updates } });
 }
 
-// Virtual table listing (derived from environment data)
+// Virtual table listing (uses schema task -- there is no dedicated list-VTs task)
 export async function listVirtualTablesRemote(): Promise<QuillResponse> {
-  return quillFetch({ task: 'virtual-tables' });
+  return quillFetch({ task: 'schema' });
 }
 
-// Virtual table update
+// Virtual table update (uses 'view' task with id field -- no separate edit-virtual-table task)
 export async function updateVirtualTableRemote(
   viewId: string,
   updates: Record<string, unknown>
 ): Promise<QuillResponse> {
+  const preQueries = updates.sql || updates.queryString || updates.viewQuery;
   return quillFetch({
-    task: 'edit-virtual-table',
-    metadata: { viewId, ...updates },
+    task: 'view',
+    metadata: {
+      id: viewId,
+      name: updates.name,
+      preQueries: preQueries ? [String(preQueries).replace(/;$/, '')] : undefined,
+      runQueryConfig: { getColumns: true },
+      useNewNodeSql: true,
+      ownerTenantFields: updates.ownerTenantFields,
+      ...updates,
+    },
   });
 }
 
-// Virtual table deletion
+// Virtual table deletion (uses 'view' task with deleted: true -- no separate delete task)
 export async function deleteVirtualTableRemote(viewId: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'delete-virtual-table', metadata: { viewId } });
+  return quillFetch({
+    task: 'view',
+    metadata: {
+      id: viewId,
+      deleted: true,
+      runQueryConfig: { getColumns: true },
+      useNewNodeSql: true,
+    },
+  });
 }
