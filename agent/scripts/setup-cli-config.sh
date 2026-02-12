@@ -1,30 +1,45 @@
 #!/usr/bin/env bash
 #
-# Sets up the Quill CLI global config to point at the local agent proxy.
+# Sets up the Quill CLI config for the agent.
+#
+# Creates:
+#   ~/.quill/config.json          (global CLI auth + endpoint)
+#   agent/.quill/config.json      (project clientId + endpoint)
 #
 # Usage:
 #   ./scripts/setup-cli-config.sh
 #   ./scripts/setup-cli-config.sh --client-id YOUR_PUBLIC_KEY
 #
-# This creates ~/.quill/config.json so the `quill` CLI sends all requests
-# to http://localhost:3000/api/quill (the agent's built-in Quill Server SDK proxy).
+# Or set QUILL_CLIENT_ID env var (used by Render/CI):
+#   QUILL_CLIENT_ID=abc123 ./scripts/setup-cli-config.sh
 #
 
 set -euo pipefail
 
-CLIENT_ID="${1:-YOUR_QUILL_PUBLIC_KEY}"
+# Resolve clientId: env var > CLI arg > default
+CLIENT_ID="${QUILL_CLIENT_ID:-}"
 
-# Strip --client-id flag if present
-if [[ "$CLIENT_ID" == "--client-id" ]]; then
-  CLIENT_ID="${2:-YOUR_QUILL_PUBLIC_KEY}"
+if [[ -z "$CLIENT_ID" ]]; then
+  CLIENT_ID="${1:-}"
+  if [[ "$CLIENT_ID" == "--client-id" ]]; then
+    CLIENT_ID="${2:-}"
+  fi
 fi
 
+if [[ -z "$CLIENT_ID" ]]; then
+  CLIENT_ID="YOUR_QUILL_PUBLIC_KEY"
+  echo "Warning: No clientId provided. Using placeholder."
+  echo "  Set QUILL_CLIENT_ID env var or pass --client-id <id>"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+AGENT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# 1. Global config (~/.quill/config.json)
 GLOBAL_DIR="$HOME/.quill"
 GLOBAL_CONFIG="$GLOBAL_DIR/config.json"
 
-echo "Setting up Quill CLI global config..."
-echo "  Global config: $GLOBAL_CONFIG"
-
+echo "Setting up Quill CLI config..."
 mkdir -p "$GLOBAL_DIR"
 
 cat > "$GLOBAL_CONFIG" << EOF
@@ -36,9 +51,21 @@ cat > "$GLOBAL_CONFIG" << EOF
 EOF
 
 echo "  Created $GLOBAL_CONFIG"
+
+# 2. Project config (agent/.quill/config.json)
+PROJECT_DIR="$AGENT_DIR/.quill"
+PROJECT_CONFIG="$PROJECT_DIR/config.json"
+
+mkdir -p "$PROJECT_DIR"
+
+cat > "$PROJECT_CONFIG" << EOF
+{
+  "clientId": "$CLIENT_ID",
+  "queryEndpoint": "http://localhost:3000/api/quill",
+  "currentEnv": "staging"
+}
+EOF
+
+echo "  Created $PROJECT_CONFIG (clientId: $CLIENT_ID)"
 echo ""
-echo "Done! The CLI will now route all requests through http://localhost:3000/api/quill"
-echo ""
-echo "Make sure to also update agent/.quill/config.json with your real clientId."
-echo "Current project config:"
-cat "$(dirname "$0")/../.quill/config.json" 2>/dev/null || echo "  (not found)"
+echo "Done! CLI will route requests through http://localhost:3000/api/quill"
