@@ -26,7 +26,7 @@ export function registerReportCommands(program: Command): void {
   reportCmd
     .command('list')
     .description('List reports for a dashboard')
-    .requiredOption('--dashboard <id>', 'Dashboard ID')
+    .requiredOption('--dashboard <name>', 'Dashboard name')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -38,18 +38,19 @@ export function registerReportCommands(program: Command): void {
       }
       
       const data = response.data as Record<string, unknown> | undefined;
-      const sections = (data?.sections || []) as Record<string, unknown>[];
+      // sections is { sectionName: Report[] } -- an object, not an array
+      const sections = (data?.sections ?? {}) as Record<string, Record<string, unknown>[]>;
       const reports: Record<string, unknown>[] = [];
       
-      for (const section of sections) {
-        const items = (section.items || section.reports || []) as Record<string, unknown>[];
-        for (const item of items) {
+      for (const [sectionName, sectionReports] of Object.entries(sections)) {
+        for (const report of sectionReports) {
           reports.push({
-            id: item.id || item._id,
-            name: item.name,
-            dashboardId: options.dashboard,
-            chartType: item.chartType,
-            hasPivot: !!item.pivot,
+            id: report.id ?? report._id,
+            name: report.name,
+            section: sectionName,
+            dashboardName: options.dashboard,
+            chartType: report.chartType,
+            hasPivot: !!report.pivot,
           });
         }
       }
@@ -78,7 +79,7 @@ export function registerReportCommands(program: Command): void {
   reportCmd
     .command('create')
     .description('Create a new report')
-    .requiredOption('--dashboard <id>', 'Dashboard ID')
+    .requiredOption('--dashboard <name>', 'Dashboard name')
     .requiredOption('--file <path>', 'JSON file with report config')
     .action(withErrorHandling(async (options) => {
       await requireAuth();

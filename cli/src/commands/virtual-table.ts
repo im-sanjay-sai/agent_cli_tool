@@ -36,14 +36,18 @@ export function registerVirtualTableCommands(program: Command): void {
       }
       
       const data = response.data as Record<string, unknown> | undefined;
-      const tables = (data?.virtualTables || data?.views || data?.items || []) as Record<string, unknown>[];
+      // schema task returns data.tables -- virtual tables have a viewQuery field
+      const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
+      const virtualTables = allTables.filter(t => t.viewQuery);
       
       output(successList(
-        tables.map(t => ({
-          id: t.id || t._id,
-          name: t.name,
-          columnCount: (t.columns as unknown[])?.length || 0,
+        virtualTables.map(t => ({
+          id: t._id,
+          name: t.name ?? t.displayName,
+          viewQuery: t.viewQuery,
+          columnCount: (t.columns as unknown[])?.length ?? 0,
           ownerTenantFields: t.ownerTenantFields,
+          broken: t.broken,
         })),
         { source: 'remote', env }
       ));

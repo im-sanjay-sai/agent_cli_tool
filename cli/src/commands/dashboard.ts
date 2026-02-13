@@ -38,15 +38,23 @@ export function registerDashboardCommands(program: Command): void {
       }
       
       const data = response.data as Record<string, unknown> | undefined;
-      const dashboards = (data?.dashboards || data?.items || []) as Record<string, unknown>[];
+      const dashboards = (data?.dashboards as Record<string, unknown>[]) ?? [];
       
       output(successList(
-        dashboards.map(d => ({
-          id: d.id || d._id,
-          name: d.name,
-          reportCount: (d.reportIds as string[])?.length || 0,
-          filterCount: (d.globalFilters as unknown[])?.length || 0,
-        })),
+        dashboards.map(d => {
+          // sections is { sectionName: Report[] } -- flatten to count reports
+          const sections = d.sections as Record<string, unknown[]> | undefined;
+          const reportCount = sections
+            ? Object.values(sections).reduce((sum, reports) => sum + reports.length, 0)
+            : 0;
+          const filterCount = (d.filters as unknown[])?.length ?? 0;
+          return {
+            id: d._id,
+            name: d.name,
+            reportCount,
+            filterCount,
+          };
+        }),
         { source: 'remote', env }
       ));
     }));
@@ -55,11 +63,11 @@ export function registerDashboardCommands(program: Command): void {
   dashCmd
     .command('show')
     .description('Show dashboard details')
-    .argument('<id>', 'Dashboard ID')
-    .action(withErrorHandling(async (id) => {
+    .argument('<name>', 'Dashboard name')
+    .action(withErrorHandling(async (name) => {
       await requireAuth();
       const env = await getCurrentEnv();
-      const response = await fetchDashboard(id);
+      const response = await fetchDashboard(name);
       
       if (response.error) {
         throw networkError(response.error);
@@ -93,17 +101,8 @@ export function registerDashboardCommands(program: Command): void {
         throw fromZodError(parseResult.error);
       }
       
-      // Transform filters to ensure id is present
-      const globalFilters = (parseResult.data.globalFilters || []).map((f, idx) => ({
-        ...f,
-        id: f.id || `filter_${idx}`,
-      }));
-      
       const response = await createDashboardRemote({
         name: parseResult.data.name,
-        globalFilters,
-        reportIds: [],
-        layout: parseResult.data.layout,
         tenantKeys: parseResult.data.tenantKeys,
       });
       
@@ -118,10 +117,10 @@ export function registerDashboardCommands(program: Command): void {
   dashCmd
     .command('update')
     .description('Update a dashboard')
-    .argument('<id>', 'Dashboard ID')
-    .option('--name <name>', 'New dashboard name')
+    .argument('<name>', 'Dashboard name')
+    .option('--new-name <newName>', 'New dashboard name')
     .option('--file <path>', 'JSON file with updates')
-    .action(withErrorHandling(async (id, options) => {
+    .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -132,15 +131,15 @@ export function registerDashboardCommands(program: Command): void {
         updates = JSON.parse(content);
       }
       
-      if (options.name) {
-        updates.name = options.name;
+      if (options.newName) {
+        updates.newName = options.newName;
       }
       
       if (Object.keys(updates).length === 0) {
-        throw invalidInput('No updates specified. Use --name or --file');
+        throw invalidInput('No updates specified. Use --new-name or --file');
       }
       
-      const response = await editDashboard(id, updates);
+      const response = await editDashboard(name, updates);
       
       if (response.error) {
         throw networkError(response.error);
@@ -153,36 +152,36 @@ export function registerDashboardCommands(program: Command): void {
   dashCmd
     .command('delete')
     .description('Delete a dashboard')
-    .argument('<id>', 'Dashboard ID')
+    .argument('<name>', 'Dashboard name')
     .option('--force', 'Skip confirmation')
-    .action(withErrorHandling(async (id, options) => {
+    .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
       
       if (!options.force) {
-        const confirmed = await confirmDeletion('dashboard', id);
+        const confirmed = await confirmDeletion('dashboard', name);
         if (!confirmed) {
           output(success({ message: 'Deletion cancelled' }));
           return;
         }
       }
       
-      const response = await deleteDashboardRemote(id);
+      const response = await deleteDashboardRemote(name);
       
       if (response.error) {
         throw networkError(response.error);
       }
       
-      output(successDeleted(id, 'dashboard', { source: 'remote', env }));
+      output(successDeleted(name, 'dashboard', { source: 'remote', env }));
     }));
 
   // Set filters
   dashCmd
     .command('set-filters')
-    .description('Set dashboard global filters')
-    .argument('<id>', 'Dashboard ID')
+    .description('Set dashboard filters')
+    .argument('<name>', 'Dashboard name')
     .requiredOption('--file <path>', 'JSON file with filters')
-    .action(withErrorHandling(async (id, options) => {
+    .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -195,8 +194,8 @@ export function registerDashboardCommands(program: Command): void {
         throw fromZodError(parseResult.error);
       }
       
-      const response = await editDashboard(id, {
-        globalFilters: parseResult.data.globalFilters,
+      const response = await editDashboard(name, {
+        filters: parseResult.data.globalFilters,
       });
       
       if (response.error) {
@@ -210,16 +209,16 @@ export function registerDashboardCommands(program: Command): void {
   dashCmd
     .command('set-section-order')
     .description('Set dashboard section order')
-    .argument('<id>', 'Dashboard ID')
+    .argument('<name>', 'Dashboard name')
     .requiredOption('--file <path>', 'JSON file with section order')
-    .action(withErrorHandling(async (id, options) => {
+    .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
       
       const content = await fs.readFile(options.file, 'utf-8');
       const data = JSON.parse(content);
       
-      const response = await setSectionOrder(id, data.sectionOrder || data);
+      const response = await setSectionOrder(name, data.sectionOrder || data);
       
       if (response.error) {
         throw networkError(response.error);
@@ -241,7 +240,7 @@ export function registerDashboardCommands(program: Command): void {
       const env = await getCurrentEnv();
 
       const warnings: string[] = [];
-      let dashboardId: string | undefined;
+      let dashboardName: string = options.name;
 
       try {
         // Step 1: Build dashboard config
@@ -261,17 +260,9 @@ export function registerDashboardCommands(program: Command): void {
           throw fromZodError(parseResult.error);
         }
 
-        const globalFilters = (parseResult.data.globalFilters || []).map((f, idx) => ({
-          ...f,
-          id: f.id || `filter_${idx}`,
-        }));
-
         verbose('Setup step 1: Creating dashboard...');
         const dashResponse = await createDashboardRemote({
           name: parseResult.data.name,
-          globalFilters,
-          reportIds: [],
-          layout: parseResult.data.layout,
           tenantKeys: parseResult.data.tenantKeys,
         });
 
@@ -280,13 +271,9 @@ export function registerDashboardCommands(program: Command): void {
         }
 
         const dashData = dashResponse.data as Record<string, unknown> | undefined;
-        dashboardId = (dashData?.id || dashData?._id) as string | undefined;
+        dashboardName = (dashData?.name || parseResult.data.name) as string;
 
-        if (!dashboardId) {
-          throw networkError('Dashboard created but no ID returned');
-        }
-
-        verbose(`Dashboard created with ID: ${dashboardId}`);
+        verbose(`Dashboard created: ${dashboardName}`);
 
         // Step 2: Create reports (if provided)
         const createdReports: Array<{ name: string; id: string }> = [];
@@ -306,9 +293,11 @@ export function registerDashboardCommands(program: Command): void {
                 continue;
               }
 
-              const reportResponse = await createReportRemote(dashboardId, {
+              const sql = reportParse.data.baseSql;
+              const reportResponse = await createReportRemote(dashboardName, {
                 name: reportParse.data.name,
-                baseSql: reportParse.data.baseSql,
+                query: sql,
+                queryString: sql,
                 chartType: reportParse.data.chartType,
                 params: reportParse.data.params || [],
                 formatting: reportParse.data.formatting,
@@ -316,6 +305,7 @@ export function registerDashboardCommands(program: Command): void {
                 dateField: reportParse.data.dateField,
                 filterMap: reportParse.data.filterMap,
                 order: reportParse.data.order || createdReports.length,
+                useNewNodeSql: true,
               });
 
               if (reportResponse.error) {
@@ -347,8 +337,8 @@ export function registerDashboardCommands(program: Command): void {
             if (!filtersParse.success) {
               warnings.push(`Filters validation failed: ${filtersParse.error.issues[0]?.message || 'invalid format'}`);
             } else {
-              const filtersResponse = await editDashboard(dashboardId, {
-                globalFilters: filtersParse.data.globalFilters,
+              const filtersResponse = await editDashboard(dashboardName, {
+                filters: filtersParse.data.globalFilters,
               });
 
               if (filtersResponse.error) {
@@ -364,11 +354,11 @@ export function registerDashboardCommands(program: Command): void {
 
         // Step 4: Fetch final state
         verbose('Setup step 4: Verifying dashboard...');
-        const finalResponse = await fetchDashboard(dashboardId);
+        const finalResponse = await fetchDashboard(dashboardName);
         const finalData = finalResponse.error ? dashData : finalResponse.data;
 
         output(success({
-          dashboardId,
+          dashboardName,
           name: options.name,
           reportsCreated: createdReports.length,
           reports: createdReports,
@@ -380,10 +370,10 @@ export function registerDashboardCommands(program: Command): void {
         }));
       } catch (error) {
         // Rollback: delete the partially-created dashboard
-        if (dashboardId) {
-          verbose(`Rolling back: deleting dashboard ${dashboardId}`);
+        if (dashboardName) {
+          verbose(`Rolling back: deleting dashboard ${dashboardName}`);
           try {
-            await deleteDashboardRemote(dashboardId);
+            await deleteDashboardRemote(dashboardName);
             verbose('Rollback successful');
           } catch {
             verbose('Rollback failed — dashboard may need manual cleanup');
