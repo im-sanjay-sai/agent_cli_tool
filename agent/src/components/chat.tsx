@@ -48,11 +48,39 @@ export function Chat() {
     setIsLoading(true);
 
     try {
-      // Build the messages payload for the API (only role + content)
-      const apiMessages = newMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Build the messages payload for the API, including tool call history
+      // so the LLM remembers previous tool calls and their results
+      const apiMessages: Array<Record<string, unknown>> = [];
+      for (const m of newMessages) {
+        if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
+          // Push assistant message with tool_calls attached (OpenAI format)
+          apiMessages.push({
+            role: "assistant",
+            content: m.content || "",
+            tool_calls: m.toolCalls.map((tc) => ({
+              id: tc.id,
+              type: "function",
+              function: {
+                name: tc.name,
+                arguments: tc.arguments,
+              },
+            })),
+          });
+          // Push each tool result as a "tool" role message
+          for (const tc of m.toolCalls) {
+            apiMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: tc.result,
+            });
+          }
+        } else {
+          apiMessages.push({
+            role: m.role,
+            content: m.content,
+          });
+        }
+      }
 
       const response = await fetch("/api/chat", {
         method: "POST",
