@@ -119,13 +119,14 @@ In the Render dashboard → your service → **Environment** → **Add Environme
 | `OPENAI_API_KEY` | `sk-proj-...` (your OpenAI API key) |
 | `CORS_ORIGIN` | `*` (temporarily — update after frontend is deployed) |
 
-**Required for Quill CLI to work** (so the CLI can authenticate and talk to your Quill API):
+**Required for Quill CLI to work** (same env vars as your old `agent/.env.local` -- copy directly):
 
 | Key | Value |
 |-----|-------|
-| `QUILL_API_TOKEN` | Your Quill API token |
+| `QUILL_PRIVATE_KEY` | Your Quill private key (`pk_...`) |
 | `QUILL_CLIENT_ID` | Your Quill client/project ID |
-| `QUILL_QUERY_ENDPOINT` | Your query endpoint URL (e.g. `https://your-app.com/api/quill`) |
+| `QUILL_DATABASE_TYPE` | `postgres` (or your DB type) |
+| `QUILL_DATABASE_CONNECTION_STRING` | Your full DB connection string |
 
 **Optional:**
 
@@ -133,11 +134,8 @@ In the Render dashboard → your service → **Environment** → **Add Environme
 |-----|-------|
 | `OPENAI_MODEL` | `gpt-5.2` (default) |
 | `QUILL_ENV` | `staging` or `prod` |
-| `QUILL_DATABASE_TYPE` | `postgres` (or your DB type) |
 
-Note: Render automatically sets `PORT` — you don't need to add it.
-
-> **How to get your Quill credentials**: These are the same values you used when running `quill init` locally. If you're not sure, run `quill config get --global --pretty` and `quill config get --project --pretty` on your local machine to see your current config.
+Note: Render automatically sets `PORT` — you don't need to add it. You do **not** need `QUILL_QUERY_ENDPOINT` -- the backend runs its own Quill SDK proxy at `/api/quill` and the CLI points to it automatically.
 
 #### 1d. Deploy
 
@@ -218,9 +216,9 @@ Render will auto-redeploy with the new env var.
 | "Invalid or missing OpenAI API key" | Check `OPENAI_API_KEY` is set in Render environment variables. |
 | Build fails: "cannot find ../../cli" | Make sure **Root Directory** is blank on Render (not `simple_agent/backend`). The build script needs the repo root. |
 | Build fails: "quill: command not found" | The `render-build.sh` didn't run. Check your Build Command is: `cd simple_agent/backend && chmod +x render-build.sh && ./render-build.sh` |
-| `quill` commands return AUTH_REQUIRED | Set `QUILL_API_TOKEN` in Render env vars. |
-| `quill` commands return NOT_INITIALIZED | Set `QUILL_CLIENT_ID` and `QUILL_QUERY_ENDPOINT` in Render env vars. Run `quill config get --global --pretty` locally to find your values. |
-| Backend health check works but chat fails | Check Render logs. Usually missing Quill env vars (`QUILL_API_TOKEN`, `QUILL_CLIENT_ID`, `QUILL_QUERY_ENDPOINT`). |
+| `quill` commands return AUTH_REQUIRED | Set `QUILL_PRIVATE_KEY` in Render env vars. |
+| `quill` commands return NOT_INITIALIZED | The `.quill/config.json` is missing. Check that `render-build.sh` ran successfully (it creates this file). |
+| Backend health check works but chat fails | Check Render logs. Usually missing Quill env vars (`QUILL_PRIVATE_KEY`, `QUILL_CLIENT_ID`, `QUILL_DATABASE_CONNECTION_STRING`). |
 | Render free tier is slow (cold starts) | First request after idle takes ~30s. Upgrade to Starter ($7/mo) for always-on. |
 | "Request timed out" on long operations | Some CLI commands (e.g. `schema explore` on large DBs) can be slow. The backend has a 2-minute timeout. |
 
@@ -234,6 +232,10 @@ Render will auto-redeploy with the new env var.
 | `OPENAI_MODEL` | No | `gpt-5.2` | Model to use |
 | `PORT` | No | `3001` | Server port |
 | `CORS_ORIGIN` | No | `*` | Allowed CORS origin |
+| `QUILL_PRIVATE_KEY` | Yes | — | Quill private key (`pk_...`) |
+| `QUILL_CLIENT_ID` | Yes | — | Quill client/project ID |
+| `QUILL_DATABASE_TYPE` | No | `postgres` | Database type |
+| `QUILL_DATABASE_CONNECTION_STRING` | Yes | — | Full DB connection string |
 
 ### Frontend
 

@@ -9,7 +9,9 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@quillsql/node": "^0.9.13",
     "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
     "express": "^4.21.0",
     "openai": "^5.0.0"
   },

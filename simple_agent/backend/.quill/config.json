@@ -1,0 +1,5 @@
+{
+  "clientId": "65809ec85375e445ddc1990e",
+  "queryEndpoint": "http://localhost:3001/api/quill",
+  "currentEnv": "staging"
+}

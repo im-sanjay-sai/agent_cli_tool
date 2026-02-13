@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { runAgent, ChatRequest } from './agent';
+import { quillProxyHandler } from './quillProxy';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +19,13 @@ if (!process.env.OPENAI_API_KEY) {
   process.exit(1);
 }
 
+if (!process.env.QUILL_PRIVATE_KEY) {
+  console.warn(
+    'WARNING: QUILL_PRIVATE_KEY is not set. The Quill SDK proxy will not work.\n' +
+      'CLI commands that need the Quill API will fail.'
+  );
+}
+
 // ---------- Middleware ----------
 
 app.use(cors({ origin: CORS_ORIGIN }));
@@ -28,6 +37,9 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', model: process.env.OPENAI_MODEL || 'gpt-5.2' });
 });
+
+// Quill Server SDK proxy (the CLI sends requests here)
+app.post('/api/quill', quillProxyHandler);
 
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
@@ -97,6 +109,7 @@ const server = app.listen(PORT, () => {
   console.log(`Quill Agent Backend running on port ${PORT}`);
   console.log(`Model: ${process.env.OPENAI_MODEL || 'gpt-5.2'}`);
   console.log(`CORS origin: ${CORS_ORIGIN}`);
+  console.log(`Quill SDK proxy: http://localhost:${PORT}/api/quill`);
 });
 
 // Graceful shutdown

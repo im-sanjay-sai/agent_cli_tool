@@ -1,6 +1,10 @@
 import { execFile } from 'child_process';
+import { resolve } from 'path';
 
 const TIMEOUT_MS = 30_000;
+
+// Run CLI from the backend root so it finds .quill/config.json
+const BACKEND_ROOT = resolve(__dirname, '..');
 
 /**
  * Safely execute a Quill CLI command.
@@ -36,6 +40,7 @@ export async function executeCli(args: { command: string }): Promise<string> {
       {
         timeout: TIMEOUT_MS,
         encoding: 'utf-8',
+        cwd: BACKEND_ROOT, // So the CLI finds .quill/config.json
         env: {
           ...process.env,
           CI: 'true', // Force non-interactive mode
