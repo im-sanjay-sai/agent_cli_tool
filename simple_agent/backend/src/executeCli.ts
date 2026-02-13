@@ -44,6 +44,10 @@ export async function executeCli(args: { command: string }): Promise<string> {
         env: {
           ...process.env,
           CI: 'true', // Force non-interactive mode
+          // The CLI uses QUILL_API_TOKEN for auth. Auto-map from QUILL_PRIVATE_KEY
+          // if QUILL_API_TOKEN isn't explicitly set.
+          QUILL_API_TOKEN:
+            process.env.QUILL_API_TOKEN || process.env.QUILL_PRIVATE_KEY || '',
         },
         maxBuffer: 5 * 1024 * 1024, // 5MB buffer for large schema outputs
       },
