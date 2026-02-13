@@ -13,4 +13,4 @@ cli/dist/
 cli/.quill/
 
 # Frontend (not part of this deployment)
-frontend/
+/frontend/
