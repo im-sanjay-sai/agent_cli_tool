@@ -9,7 +9,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MODEL = process.env.OPENAI_MODEL || "gpt-4.1";
+const MODEL = "gpt-5.2";
 const MAX_TOOL_ROUNDS = 15;
 
 export async function POST(req: NextRequest) {
@@ -62,8 +62,10 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Execute each tool call
+      // Execute each tool call (only function-type tool calls)
       for (const toolCall of assistantMessage.tool_calls) {
+        if (toolCall.type !== "function") continue;
+
         const toolName = toolCall.function.name;
         let toolArgs: Record<string, unknown> = {};
 

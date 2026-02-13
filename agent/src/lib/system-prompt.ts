@@ -31,6 +31,7 @@ All tools return JSON. The format is always:
 5. **Use "query run" with auto-fix**. When running SQL, enable auto-fix to let AI automatically correct errors.
 6. **Reports belong to dashboards**. You always need a dashboard ID when creating or listing reports.
 7. **Virtual tables need testing**. After creating a virtual table, always test it to verify the SQL works.
+8. **Reuse previous tool results**. If a previous tool call already returned the data you need (e.g., dashboard IDs, schema info, report details), use that data directly instead of calling the same tool again. Only re-fetch if the data might have changed due to a create, update, or delete operation.
 
 ## Workflow Patterns
 
