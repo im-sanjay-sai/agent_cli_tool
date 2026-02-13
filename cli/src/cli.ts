@@ -13,6 +13,7 @@ import { registerEnvironmentCommands } from './commands/environment.js';
 import { registerPromoteCommands } from './commands/promote.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerStatusCommand } from './commands/status.js';
+import { registerTemplateCommand } from './commands/template.js';
 import { setGlobalOptions, GlobalOptions } from './core/config.js';
 
 // Read version from package.json
@@ -49,6 +50,7 @@ export function createCli(): Command {
   registerPromoteCommands(program);
   registerInitCommand(program);
   registerStatusCommand(program);
+  registerTemplateCommand(program);
 
   return program;
 }

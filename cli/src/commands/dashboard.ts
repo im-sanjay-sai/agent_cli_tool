@@ -29,7 +29,8 @@ export function registerDashboardCommands(program: Command): void {
   dashCmd
     .command('list')
     .description('List all dashboards')
-    .action(withErrorHandling(async () => {
+    .option('--names-only', 'Return only dashboard names (lightweight)')
+    .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();
       const response = await fetchDashboards();
@@ -40,6 +41,14 @@ export function registerDashboardCommands(program: Command): void {
       
       const data = response.data as Record<string, unknown> | undefined;
       const dashboards = (data?.dashboards as Record<string, unknown>[]) ?? [];
+
+      if (options.namesOnly) {
+        output(successList(
+          dashboards.map(d => d.name as string),
+          { source: 'remote', env }
+        ));
+        return;
+      }
       
       output(successList(
         dashboards.map(d => {
