@@ -1,7 +1,7 @@
 import { execFile } from 'child_process';
 import { resolve } from 'path';
 
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 120_000; // 2 min — the proxy chain (CLI → /api/quill → DB) can be slow
 
 // Run CLI from the backend root so it finds .quill/config.json
 const BACKEND_ROOT = resolve(__dirname, '..');
