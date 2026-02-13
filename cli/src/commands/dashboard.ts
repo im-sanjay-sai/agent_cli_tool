@@ -294,18 +294,21 @@ export function registerDashboardCommands(program: Command): void {
               }
 
               const sql = reportParse.data.baseSql;
+              const fmt = reportParse.data.formatting;
               const reportResponse = await createReportRemote(dashboardName, {
                 name: reportParse.data.name,
                 query: sql,
                 queryString: sql,
                 chartType: reportParse.data.chartType,
-                params: reportParse.data.params || [],
-                formatting: reportParse.data.formatting,
                 pivot: reportParse.data.pivot || null,
                 dateField: reportParse.data.dateField,
                 filterMap: reportParse.data.filterMap,
                 order: reportParse.data.order || createdReports.length,
                 useNewNodeSql: true,
+                xAxisLabel: fmt?.xAxisLabel || '',
+                xAxisFormat: fmt?.xAxisFormat || 'string',
+                yAxisFields: fmt?.yAxisFields || [],
+                showLegend: fmt?.showLegend,
               });
 
               if (reportResponse.error) {

@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import * as fs from 'fs/promises';
 import { requireAuth } from '../core/auth.js';
 import {
   aiGenerateFromSchema,
@@ -66,12 +67,14 @@ export function registerAiCommands(program: Command): void {
   aiCmd
     .command('pivot')
     .description('Generate pivot configuration using AI')
-    .argument('<prompt>', 'Description of desired pivot')
-    .option('--report <id>', 'Report ID to apply pivot to')
-    .action(withErrorHandling(async (prompt, options) => {
+    .requiredOption('--file <path>', 'JSON file with pivot config (pivotCountRequest, allowedRowFields, allowedColumnFields, allowedValueFields, tableSchema)')
+    .action(withErrorHandling(async (options) => {
       await requireAuth();
       
-      const response = await aiPivot(prompt, options.report);
+      const content = await fs.readFile(options.file, 'utf-8');
+      const pivotConfig = JSON.parse(content);
+      
+      const response = await aiPivot(pivotConfig);
       
       if (response.error) {
         throw networkError(response.error);
@@ -79,9 +82,7 @@ export function registerAiCommands(program: Command): void {
       
       const pivotData = response.data as Record<string, unknown> | undefined;
       output(success({
-        prompt,
-        reportId: options.report,
-        pivot: pivotData?.pivot || pivotData,
+        pivotTables: pivotData?.pivotTables || pivotData?.data,
       }, { source: 'remote' }));
     }));
 

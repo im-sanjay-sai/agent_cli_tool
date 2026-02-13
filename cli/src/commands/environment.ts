@@ -72,7 +72,7 @@ export function registerEnvironmentCommands(program: Command): void {
       const content = await fs.readFile(options.file, 'utf-8');
       const updates = JSON.parse(content);
       
-      const response = await updateClient({ clientId: id, ...updates });
+      const response = await updateClient(id, updates);
       
       if (response.error) {
         throw networkError(response.error);

@@ -94,20 +94,24 @@ export function registerReportCommands(program: Command): void {
         throw fromZodError(parseResult.error);
       }
       
-      // Frontend uses 'query' and 'queryString' (not 'baseSql') for the SQL
+      // Frontend sends 'query'/'queryString' (not 'baseSql') and chart fields at top-level (not nested in 'formatting')
       const sql = parseResult.data.baseSql;
+      const formatting = parseResult.data.formatting;
       const response = await createReportRemote(options.dashboard, {
         name: parseResult.data.name,
         query: sql,
         queryString: sql,
         chartType: parseResult.data.chartType,
-        params: parseResult.data.params || [],
-        formatting: parseResult.data.formatting,
         pivot: parseResult.data.pivot || null,
         dateField: parseResult.data.dateField,
         filterMap: parseResult.data.filterMap,
         order: parseResult.data.order || 0,
         useNewNodeSql: true,
+        // Flatten formatting fields to top-level (backend expects them flat, not nested)
+        xAxisLabel: formatting?.xAxisLabel || '',
+        xAxisFormat: formatting?.xAxisFormat || 'string',
+        yAxisFields: formatting?.yAxisFields || [],
+        showLegend: formatting?.showLegend,
       });
       
       if (response.error) {

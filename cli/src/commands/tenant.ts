@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import * as fs from 'fs/promises';
 import { requireAuth } from '../core/auth.js';
 import {
   fetchTenantMapping,
@@ -59,14 +58,13 @@ export function registerTenantCommands(program: Command): void {
   tenantCmd
     .command('validate')
     .description('Validate tenant mapping')
-    .requiredOption('--file <path>', 'JSON file with tenant mapping to validate')
+    .requiredOption('--query <sql>', 'SQL mapping query')
+    .requiredOption('--from-field <field>', 'Source tenant field name')
+    .requiredOption('--to-field <field>', 'Target tenant field name')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       
-      const content = await fs.readFile(options.file, 'utf-8');
-      const mapping = JSON.parse(content);
-      
-      const response = await validateTenantMapping(mapping);
+      const response = await validateTenantMapping(options.query, options.fromField, options.toField);
       
       if (response.error) {
         throw networkError(response.error);

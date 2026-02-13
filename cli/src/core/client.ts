@@ -193,9 +193,9 @@ export async function testVirtualTable(tableName: string): Promise<QuillResponse
   return quillFetch({ task: 'test-view', metadata: { tables: [tableName] } });
 }
 
-// Query tasks
+// Query tasks -- frontend uses field name 'query' not 'sql'
 export async function executeQuery(sql: string, filters?: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'query', metadata: { sql, filters } });
+  return quillFetch({ task: 'query', metadata: { query: sql, filters, useNewNodeSql: true } });
 }
 
 export async function parseToAst(query: string): Promise<QuillResponse> {
@@ -203,7 +203,7 @@ export async function parseToAst(query: string): Promise<QuillResponse> {
 }
 
 export async function buildFromAst(ast: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'sqlify', metadata: { ast } });
+  return quillFetch({ task: 'sqlify', metadata: { ast, useNewNodeSql: true } });
 }
 
 // Schema tasks
@@ -235,9 +235,9 @@ export async function setSchemas(schemaNames: string[]): Promise<QuillResponse> 
   return quillFetch({ task: 'set-schemas', metadata: { schemaNames } });
 }
 
-// AI tasks
+// AI tasks -- frontend uses 'initialQuestion' not 'prompt' for most AI tasks
 export async function aiQuery(prompt: string, schemaNames?: string[]): Promise<QuillResponse> {
-  return quillFetch({ task: 'quillai', metadata: { prompt, schemaNames } });
+  return quillFetch({ task: 'quillai', metadata: { initialQuestion: prompt, schemaNames } });
 }
 
 export async function aiGenerateFromSchema(prompt: string, schemaNames?: string[]): Promise<QuillResponse> {
@@ -248,20 +248,24 @@ export async function aiSqlGenerator(initialQuestion: string, tableSchemas?: unk
   return quillFetch({ task: 'sql-generator', metadata: { initialQuestion, tableSchemas } });
 }
 
-export async function aiFix(query: string, error: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'plsfix', metadata: { query, error } });
+// Frontend uses 'brokenQuery' and 'errorMessage' not 'query' and 'error'
+export async function aiFix(brokenSql: string, errorMessage: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'plsfix', metadata: { brokenQuery: brokenSql, errorMessage } });
 }
 
-export async function aiPivot(prompt: string, reportId?: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'pivotai', metadata: { prompt, reportId } });
+// Frontend sends structured pivot data, not a text prompt
+export async function aiPivot(pivotConfig: Record<string, unknown>): Promise<QuillResponse> {
+  return quillFetch({ task: 'pivotai', metadata: pivotConfig });
 }
 
+// Frontend uses 'initialQuestion' not 'prompt'
 export async function aiMagic(prompt: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'magic', metadata: { prompt } });
+  return quillFetch({ task: 'magic', metadata: { initialQuestion: prompt } });
 }
 
+// Frontend uses 'initialQuestion' and 'sqlQuery' not 'prompt' and 'existingQuery'
 export async function aiMagicEdit(prompt: string, existingQuery: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'magic-edit', metadata: { prompt, existingQuery } });
+  return quillFetch({ task: 'magic-edit', metadata: { initialQuestion: prompt, sqlQuery: existingQuery } });
 }
 
 // Tenant tasks
@@ -277,8 +281,9 @@ export async function fetchMappedTenants(): Promise<QuillResponse> {
   return quillFetch({ task: 'mapped-tenants' });
 }
 
-export async function validateTenantMapping(mapping: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'validate-tenant-mapping', metadata: { mapping } });
+// Frontend sends { query, fromTenantField, toTenantField } not { mapping }
+export async function validateTenantMapping(query: string, fromTenantField: string, toTenantField: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'validate-tenant-mapping', metadata: { query, fromTenantField, toTenantField } });
 }
 
 // Environment/Client tasks
@@ -290,8 +295,9 @@ export async function fetchClients(): Promise<QuillResponse> {
   return quillFetch({ task: 'clients' });
 }
 
-export async function updateClient(updates: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'update-client', metadata: updates });
+// Frontend wraps updates in a 'client' key: { clientId, client: { ...updates } }
+export async function updateClient(clientId: string, updates: Record<string, unknown>): Promise<QuillResponse> {
+  return quillFetch({ task: 'update-client', metadata: { clientId, client: updates } });
 }
 
 export async function deleteClient(clientId: string): Promise<QuillResponse> {
