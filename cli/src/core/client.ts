@@ -46,7 +46,7 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
   verbose(`API Request: ${options.task}`, { url, metadata: options.metadata });
   
   const controller = new AbortController();
-  const timeout = options.timeout || 30000;
+  const timeout = options.timeout || 120000; // 2 min — proxy chain (CLI → /api/quill → Quill Cloud) can be slow
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   
   try {
@@ -268,7 +268,7 @@ export async function testConnection(connectionString?: string, databaseType?: s
   return quillFetch({
     task: 'test-connection',
     metadata: { connectionString, databaseType },
-    timeout: 10000,
+    timeout: 60000, // 60s — DB connection through proxy can be slow
   });
 }
 
