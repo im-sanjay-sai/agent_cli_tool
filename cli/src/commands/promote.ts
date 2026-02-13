@@ -23,11 +23,24 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--to <clientId>', 'Target environment client ID')
     .option('--auto-resolve', 'Automatically resolve conflicts (e.g. add missing tables)')
     .option('--skip-warning', 'Skip promotion warnings')
+    .option('--dry-run', 'Preview what would be promoted without making changes')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       
       if (options.from === options.to) {
         throw invalidInput('--from and --to must be different environments');
+      }
+
+      if (options.dryRun) {
+        output(success({
+          dryRun: true,
+          action: 'promote-dashboard',
+          dashboardName: name,
+          from: options.from,
+          to: options.to,
+          autoResolve: !!options.autoResolve,
+        }, { source: 'local' }));
+        return;
       }
       
       const response = await promoteDashboardRemote(name, options.from, options.to, {
@@ -59,11 +72,25 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--to <clientId>', 'Target environment client ID')
     .option('--auto-resolve', 'Automatically add missing virtual tables')
     .option('--skip-warning', 'Skip promotion warnings')
+    .option('--dry-run', 'Preview what would be promoted without making changes')
     .action(withErrorHandling(async (id, options) => {
       await requireAuth();
       
       if (options.from === options.to) {
         throw invalidInput('--from and --to must be different environments');
+      }
+
+      if (options.dryRun) {
+        output(success({
+          dryRun: true,
+          action: 'promote-report',
+          reportId: id,
+          dashboardName: options.dashboard,
+          from: options.from,
+          to: options.to,
+          autoResolve: !!options.autoResolve,
+        }, { source: 'local' }));
+        return;
       }
       
       const response = await promoteReportRemote(id, options.dashboard, options.from, options.to, {
@@ -93,11 +120,23 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--from <clientId>', 'Source environment client ID')
     .requiredOption('--to <clientId>', 'Target environment client ID')
     .option('--skip-warning', 'Skip promotion warnings')
+    .option('--dry-run', 'Preview what would be promoted without making changes')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       
       if (options.from === options.to) {
         throw invalidInput('--from and --to must be different environments');
+      }
+
+      if (options.dryRun) {
+        output(success({
+          dryRun: true,
+          action: 'promote-vt',
+          virtualTableName: name,
+          from: options.from,
+          to: options.to,
+        }, { source: 'local' }));
+        return;
       }
       
       const response = await promoteVTRemote(name, options.from, options.to, {

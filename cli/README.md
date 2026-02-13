@@ -87,6 +87,19 @@ quill dashboard delete "My Dashboard" --force
 
 **Dashboards are identified by name**, not ID. Reports and virtual tables use IDs. See the command reference below for details.
 
+### Environment Variables
+
+All configuration can be set via environment variables (takes precedence over config files):
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `QUILL_API_TOKEN` | API authentication token | `your-token-here` |
+| `QUILL_CLIENT_ID` | Quill client/project ID | `65809ec85375e445ddc1990e` |
+| `QUILL_QUERY_ENDPOINT` | Query endpoint URL | `http://localhost:3000/api/quill` |
+| `QUILL_SERVER_URL` | Auth server URL | `https://api.quillsql.com` |
+| `QUILL_ENV` | Default environment | `staging` or `prod` |
+| `QUILL_DATABASE_TYPE` | Database type (used by agent) | `postgres` |
+
 ## Configuration
 
 ### Global Configuration (~/.quill/config.json)

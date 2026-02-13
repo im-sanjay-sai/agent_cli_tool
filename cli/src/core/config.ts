@@ -8,7 +8,6 @@ import { Environment, EnvironmentSchema } from '../models/index.js';
 // Global options from CLI flags
 export interface GlobalOptions {
   env: string;
-  json: boolean;
   pretty: boolean;
   verbose: boolean;
   token?: string;
@@ -16,7 +15,6 @@ export interface GlobalOptions {
 
 let globalOptions: GlobalOptions = {
   env: 'staging',
-  json: true,
   pretty: false,
   verbose: false,
 };
@@ -232,7 +230,7 @@ export async function initProjectStore(
 }
 
 /**
- * Get current environment (from flag, project config, or global config)
+ * Get current environment (from flag, env var, project config, or global config)
  */
 export async function getCurrentEnv(cwd: string = process.cwd()): Promise<Environment> {
   // 1. Check CLI flag
@@ -241,7 +239,13 @@ export async function getCurrentEnv(cwd: string = process.cwd()): Promise<Enviro
     return opts.env as Environment;
   }
 
-  // 2. Check project config
+  // 2. Check QUILL_ENV env var
+  const envVar = process.env.QUILL_ENV;
+  if (envVar && (envVar === 'staging' || envVar === 'prod')) {
+    return envVar as Environment;
+  }
+
+  // 3. Check project config
   try {
     const projectConfig = await getProjectConfig(cwd);
     if (projectConfig.currentEnv) {
@@ -251,7 +255,7 @@ export async function getCurrentEnv(cwd: string = process.cwd()): Promise<Enviro
     // Project not initialized, continue to global config
   }
 
-  // 3. Check global config
+  // 4. Check global config
   const globalConfig = await getGlobalConfig();
   return globalConfig.defaultEnv || 'staging';
 }
@@ -266,6 +270,7 @@ export async function getMergedConfig(cwd: string = process.cwd()): Promise<{
   queryHeaders?: Record<string, string>;
   currentEnv: Environment;
   withCredentials?: boolean;
+  serverUrl?: string;
 }> {
   const globalConfig = await getGlobalConfig();
   
@@ -279,12 +284,14 @@ export async function getMergedConfig(cwd: string = process.cwd()): Promise<{
   const currentEnv = await getCurrentEnv(cwd);
   const opts = getGlobalOptions();
 
+  // Env vars take precedence over config files (for CI/CD and agent use)
   return {
-    token: opts.token || globalConfig.token,
-    clientId: projectConfig?.clientId,
-    queryEndpoint: projectConfig?.queryEndpoint || globalConfig.queryEndpoint,
+    token: opts.token || process.env.QUILL_API_TOKEN || globalConfig.token,
+    clientId: process.env.QUILL_CLIENT_ID || projectConfig?.clientId,
+    queryEndpoint: process.env.QUILL_QUERY_ENDPOINT || projectConfig?.queryEndpoint || globalConfig.queryEndpoint,
     queryHeaders: projectConfig?.queryHeaders,
     currentEnv,
     withCredentials: projectConfig?.withCredentials,
+    serverUrl: process.env.QUILL_SERVER_URL || globalConfig.serverUrl,
   };
 }
