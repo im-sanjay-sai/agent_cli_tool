@@ -82,7 +82,7 @@ export function registerDashboardCommands(program: Command): void {
     .command('create')
     .description('Create a new dashboard')
     .requiredOption('--name <name>', 'Dashboard name')
-    .option('--file <path>', 'JSON file with full dashboard config')
+    .option('--file <path>', 'JSON file: { name, tenantKeys?, layout? }')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -92,6 +92,12 @@ export function registerDashboardCommands(program: Command): void {
       if (options.file) {
         const content = await fs.readFile(options.file, 'utf-8');
         input = JSON.parse(content);
+        if (input.name && input.name !== options.name) {
+          verbose(`Warning: --name "${options.name}" overridden by name "${input.name}" from --file`);
+        }
+        if (!input.name) {
+          input.name = options.name;
+        }
       } else {
         input = { name: options.name };
       }
@@ -122,7 +128,7 @@ export function registerDashboardCommands(program: Command): void {
     .description('Update a dashboard')
     .argument('<name>', 'Dashboard name')
     .option('--new-name <newName>', 'New dashboard name')
-    .option('--file <path>', 'JSON file with updates')
+    .option('--file <path>', 'JSON file: { newName?, tenantKeys?, filters? }')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -185,7 +191,7 @@ export function registerDashboardCommands(program: Command): void {
     .command('set-filters')
     .description('Set dashboard filters')
     .argument('<name>', 'Dashboard name')
-    .requiredOption('--file <path>', 'JSON file with filters')
+    .requiredOption('--file <path>', 'JSON file: { globalFilters: [{ id, type, field, label? }] }')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -215,7 +221,7 @@ export function registerDashboardCommands(program: Command): void {
     .command('set-section-order')
     .description('Set dashboard section order')
     .argument('<name>', 'Dashboard name')
-    .requiredOption('--file <path>', 'JSON file with section order')
+    .requiredOption('--file <path>', 'JSON file: { sectionOrder: [{ section, reportOrder: [id, ...] }] }')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -239,7 +245,7 @@ export function registerDashboardCommands(program: Command): void {
     .requiredOption('--name <name>', 'Dashboard name')
     .option('--reports <paths>', 'Comma-separated report JSON file paths, or a directory containing report JSON files')
     .option('--filters <path>', 'JSON file with global filters config')
-    .option('--file <path>', 'JSON file with full dashboard config (name, globalFilters, layout, tenantKeys)')
+    .option('--file <path>', 'JSON file: { name, tenantKeys?, layout? }')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();

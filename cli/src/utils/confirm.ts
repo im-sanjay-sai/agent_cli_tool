@@ -3,14 +3,14 @@ import * as readline from 'readline';
 /**
  * Prompt the user for confirmation before a destructive action.
  *
- * - If stdin is not a TTY (piped, agent, CI/CD), skips the prompt and returns true.
+ * - If stdin is not a TTY (piped, agent, CI/CD), returns false -- use --force to skip.
  * - Otherwise asks "Are you sure you want to delete <type> '<id>'? [y/N]"
  * - Default is No (pressing Enter without input cancels).
  */
 export async function confirmDeletion(resourceType: string, id: string): Promise<boolean> {
-  // Non-interactive environments: skip prompt
+  // Non-interactive environments: require --force (safer default for agents/CI)
   if (!process.stdin.isTTY) {
-    return true;
+    return false;
   }
 
   const rl = readline.createInterface({

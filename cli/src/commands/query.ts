@@ -49,26 +49,11 @@ export function registerQueryCommands(program: Command): void {
         const retryResponse = await executeQuery(fixedSql, filters);
 
         if (retryResponse.error) {
-          // Both original and fixed SQL failed
-          output(success({
-            autoFix: {
-              originalSql: options.sql,
-              originalError: response.error,
-              fixedSql,
-              retryError: retryResponse.error,
-              resolved: false,
-            },
-            rows: [],
-            fields: [],
-            rowCount: 0,
-          }, {
-            source: 'remote',
-            warnings: [
-              `Original query failed: ${response.error}`,
-              `AI-fixed query also failed: ${retryResponse.error}`,
-            ],
-          }));
-          return;
+          // Both original and fixed SQL failed -- return ok: false
+          throw networkError(
+            `Auto-fix failed. Original error: ${response.error}. AI-fixed SQL also failed: ${retryResponse.error}`,
+            { originalSql: options.sql, fixedSql, originalError: response.error, retryError: retryResponse.error }
+          );
         }
 
         // Fixed SQL worked

@@ -84,7 +84,7 @@ export function registerReportCommands(program: Command): void {
     .command('create')
     .description('Create a new report')
     .requiredOption('--dashboard <name>', 'Dashboard name')
-    .requiredOption('--file <path>', 'JSON file with report config')
+    .requiredOption('--file <path>', 'JSON file: { name, baseSql, chartType, pivot?, dateField?, filterMap?, columns? }')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -143,7 +143,7 @@ export function registerReportCommands(program: Command): void {
     .command('update')
     .description('Update a report')
     .argument('<id>', 'Report ID')
-    .requiredOption('--file <path>', 'JSON file with updates')
+    .requiredOption('--file <path>', 'JSON file with fields to update (any report fields)')
     .action(withErrorHandling(async (id, options) => {
       await requireAuth();
       const env = await getCurrentEnv();

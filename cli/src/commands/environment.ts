@@ -67,7 +67,7 @@ export function registerEnvironmentCommands(program: Command): void {
     .command('update')
     .description('Update environment settings')
     .argument('<id>', 'Client/environment ID')
-    .requiredOption('--file <path>', 'JSON file with updates')
+    .requiredOption('--file <path>', 'JSON file: { name?, schemaNames?, databaseType?, databaseConnectionString? }')
     .action(withErrorHandling(async (id, options) => {
       await requireAuth();
       

@@ -13,7 +13,7 @@ import {
 import { validateVirtualTable } from '../core/validator.js';
 import { VirtualTableCreateInputSchema } from '../models/index.js';
 import { confirmDeletion } from '../utils/confirm.js';
-import { output, withErrorHandling } from '../output/formatter.js';
+import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { invalidInput, fromZodError, networkError } from '../output/errors.js';
 
@@ -96,13 +96,19 @@ export function registerVirtualTableCommands(program: Command): void {
       
       // Run the query first to get column metadata (like the frontend does)
       let columns: unknown[] | undefined;
+      const vtWarnings: string[] = [];
       try {
         const queryResult = await queryVirtualTable(parseResult.data.sql);
         const queryData = queryResult.data as Record<string, unknown> | undefined;
         const queryResults = (queryData?.queryResults as Record<string, unknown>[] | undefined)?.[0];
         columns = queryResults?.fields as unknown[] | undefined;
-      } catch {
-        // Column extraction failed -- create without columns
+        if (!columns) {
+          vtWarnings.push('Could not extract column metadata from query -- virtual table will be created without column info');
+          verbose('Column extraction returned no fields');
+        }
+      } catch (err) {
+        vtWarnings.push(`Column extraction failed: ${err instanceof Error ? err.message : String(err)} -- creating without columns`);
+        verbose(`Column extraction error: ${err}`);
       }
 
       const response = await createVirtualTableRemote(
@@ -116,7 +122,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successCreated(response.data, { source: 'remote', env }));
+      output(successCreated(response.data, { source: 'remote', env, warnings: vtWarnings }));
     }));
 
   // Update virtual table

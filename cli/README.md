@@ -57,16 +57,35 @@ quill dashboard setup --name "Sales Analytics" --reports ./reports/
 
 # Or create step by step
 quill dashboard create --name "Sales Analytics"
-quill report create --dashboard <dashboard-id> --file report.json
+quill report create --dashboard "Sales Analytics" --file report.json
 
 # List all dashboards
 quill dashboard list
 
 # Promote to production
-quill promote dashboard <id> --from staging --to prod
+quill promote dashboard "Sales Analytics" --from <sourceClientId> --to <targetClientId>
 ```
 
 > **Note:** `quill init` handles auth, project config, and connection testing in one step (uses `--query-endpoint`). `quill config init` only creates `.quill/config.json` (uses `--endpoint`). Use `quill init` for first-time setup.
+
+## Non-Interactive Setup (CI/CD, Agents)
+
+For AI agents (Claude Code, Cursor) and CI/CD pipelines, use environment variables instead of `quill login`:
+
+```bash
+# Set auth token as env var (replaces quill login)
+export QUILL_API_TOKEN=your-token-here
+
+# Initialize project config (--skip-connection-test avoids hanging on network issues)
+quill init --token $QUILL_API_TOKEN --client-id <id> --query-endpoint <url> --skip-connection-test
+
+# Always pass --force on delete commands (non-TTY environments will reject deletes without it)
+quill dashboard delete "My Dashboard" --force
+```
+
+**Do NOT** use `quill login` without `--token` in non-interactive environments -- the device code flow opens a browser and will hang.
+
+**Dashboards are identified by name**, not ID. Reports and virtual tables use IDs. See the command reference below for details.
 
 ## Configuration
 
@@ -139,7 +158,7 @@ quill config set token <token> --global
 quill dashboard list
 
 # Show dashboard details
-quill dashboard show <dashboard-id>
+quill dashboard show "My Dashboard"
 
 # Create dashboard
 quill dashboard create --name "My Dashboard"
@@ -151,31 +170,31 @@ quill dashboard setup --name "Sales Analytics" --reports report1.json,report2.js
 quill dashboard setup --name "Sales Analytics" --file dashboard.json --reports ./reports/
 
 # Update dashboard
-quill dashboard update <dashboard-id> --name "New Name"
-quill dashboard update <dashboard-id> --file updates.json
+quill dashboard update "My Dashboard" --new-name "New Name"
+quill dashboard update "My Dashboard" --file updates.json
 
 # Delete dashboard (prompts for confirmation; use --force to skip)
-quill dashboard delete <dashboard-id>
-quill dashboard delete <dashboard-id> --force
+quill dashboard delete "My Dashboard"
+quill dashboard delete "My Dashboard" --force
 
 # Set global filters
-quill dashboard set-filters <dashboard-id> --file filters.json
+quill dashboard set-filters "My Dashboard" --file filters.json
 
 # Set section order
-quill dashboard set-section-order <dashboard-id> --file order.json
+quill dashboard set-section-order "My Dashboard" --file order.json
 ```
 
 ### Reports
 
 ```bash
 # List reports for a dashboard
-quill report list --dashboard <dashboard-id>
+quill report list --dashboard "My Dashboard"
 
 # Show report
 quill report show <report-id>
 
 # Create report
-quill report create --dashboard <dashboard-id> --file report.json
+quill report create --dashboard "My Dashboard" --file report.json
 
 # Update report
 quill report update <report-id> --file updates.json
@@ -221,17 +240,20 @@ quill vt validate <vt-id>
 ### Environment Promotion
 
 ```bash
-# Promote dashboard
-quill promote dashboard <id> --from staging --to prod
+# Promote dashboard (--from and --to are client IDs, not environment names)
+quill promote dashboard "My Dashboard" --from <sourceClientId> --to <targetClientId>
 
 # Promote report
-quill promote report <id> --from staging --to prod
+quill promote report <report-id> --dashboard "My Dashboard" --from <sourceClientId> --to <targetClientId>
 
 # Promote virtual table
-quill promote vt <id> --from staging --to prod
+quill promote vt "my_virtual_table" --from <sourceClientId> --to <targetClientId>
 
-# Auto-resolve conflicts
-quill promote dashboard <id> --from staging --to prod --auto-resolve
+# Auto-resolve conflicts (add missing virtual tables)
+quill promote dashboard "My Dashboard" --from <sourceClientId> --to <targetClientId> --auto-resolve
+
+# Skip promotion warnings
+quill promote dashboard "My Dashboard" --from <sourceClientId> --to <targetClientId> --skip-warning
 ```
 
 ### Schema Operations
@@ -265,8 +287,8 @@ quill ai query "Show me total revenue by month for 2024"
 # Fix broken SQL
 quill ai fix --sql "SELCT * FROM users" --error "syntax error at SELCT"
 
-# Generate pivot configuration
-quill ai pivot "Group revenue by product category and month" --report <id>
+# Generate pivot configuration (requires structured JSON config)
+quill ai pivot --file pivot-config.json
 
 # Edit SQL with AI
 quill ai edit --sql "SELECT * FROM users" --prompt "Add a WHERE clause for active users only"
@@ -321,7 +343,7 @@ quill tenant list
 quill tenant mapping get
 
 # Validate tenant mapping
-quill tenant validate --file mapping.json
+quill tenant validate --query "SELECT tenant_id, org_id FROM mappings" --from-field tenant_id --to-field org_id
 ```
 
 ## Global Flags

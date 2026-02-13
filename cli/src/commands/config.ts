@@ -96,11 +96,11 @@ export function registerConfigCommands(program: Command): void {
     .argument('<value>', 'Configuration value')
     .option('--global', 'Set in global config')
     .action(withErrorHandling(async (key, value, options) => {
-      // Parse value
+      // Parse value -- only coerce booleans, keep everything else as strings
+      // to prevent corrupting tokens/IDs that look numeric
       let parsedValue: unknown = value;
       if (value === 'true') parsedValue = true;
       else if (value === 'false') parsedValue = false;
-      else if (!isNaN(Number(value))) parsedValue = Number(value);
       
       if (options.global) {
         // Set global config
