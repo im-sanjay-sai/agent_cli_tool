@@ -62,6 +62,8 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
           task: options.task,
           clientId: config.clientId,
           adminMode: true,
+          databaseType: process.env.QUILL_DATABASE_TYPE || undefined,
+          useNewNodeSql: true,
           ...options.metadata,
         },
       }),
@@ -185,7 +187,14 @@ export async function createVirtualTableRemote(
 }
 
 export async function queryVirtualTable(view: string, databaseType?: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'query-view', metadata: { view, databaseType } });
+  return quillFetch({
+    task: 'query-view',
+    metadata: {
+      view,
+      databaseType,
+      runQueryConfig: { convertDatatypes: true, limitThousand: true },
+    },
+  });
 }
 
 // Frontend uses 'tables' array not 'view' string
@@ -208,7 +217,14 @@ export async function buildFromAst(ast: unknown): Promise<QuillResponse> {
 
 // Schema tasks
 export async function fetchSchema(): Promise<QuillResponse> {
-  return quillFetch({ task: 'schema' });
+  return quillFetch({
+    task: 'schema',
+    metadata: {
+      removeCustomerField: true,
+      removeCustomFieldRef: true,
+      useNewCustomFields: true,
+    },
+  });
 }
 
 export async function fetchTablesBySchema(schema: string): Promise<QuillResponse> {
@@ -228,7 +244,7 @@ export async function testConnection(connectionString?: string, databaseType?: s
 }
 
 export async function fetchSchemaNames(): Promise<QuillResponse> {
-  return quillFetch({ task: 'get-schema-names' });
+  return quillFetch({ task: 'get-schema-names', metadata: {} });
 }
 
 export async function setSchemas(schemaNames: string[]): Promise<QuillResponse> {
@@ -268,13 +284,13 @@ export async function aiMagicEdit(prompt: string, existingQuery: string): Promis
   return quillFetch({ task: 'magic-edit', metadata: { initialQuestion: prompt, sqlQuery: existingQuery } });
 }
 
-// Tenant tasks
-export async function fetchTenantMapping(): Promise<QuillResponse> {
-  return quillFetch({ task: 'tenant-mapping' });
+// Tenant tasks -- frontend requires tenants and dashboardName
+export async function fetchTenantMapping(dashboardName?: string, tenants?: unknown): Promise<QuillResponse> {
+  return quillFetch({ task: 'tenant-mapping', metadata: { dashboardName, tenants } });
 }
 
-export async function fetchViewerTenants(): Promise<QuillResponse> {
-  return quillFetch({ task: 'viewer-tenants' });
+export async function fetchViewerTenants(dashboardName?: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'viewer-tenants', metadata: { dashboardName } });
 }
 
 export async function fetchMappedTenants(): Promise<QuillResponse> {
@@ -305,7 +321,15 @@ export async function deleteClient(clientId: string): Promise<QuillResponse> {
 }
 
 export async function fetchEnvironment(): Promise<QuillResponse> {
-  return quillFetch({ task: 'environment' });
+  return quillFetch({
+    task: 'environment',
+    metadata: {
+      removeCustomerField: true,
+      removeCustomFieldRef: true,
+      useNewCustomFields: true,
+      fetchDashboards: true,
+    },
+  });
 }
 
 // Promotion tasks
@@ -388,8 +412,15 @@ export async function setCustomFields(fields: unknown[]): Promise<QuillResponse>
 // ============= Additional CRUD methods for CLI =============
 
 // Dashboard creation (uses edit-dashboard with upsert semantics)
+// Frontend always sends both 'name' and 'newDashboardName'
 export async function createDashboardRemote(config: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'edit-dashboard', metadata: config });
+  return quillFetch({
+    task: 'edit-dashboard',
+    metadata: {
+      newDashboardName: config.name as string,
+      ...config,
+    },
+  });
 }
 
 // Report update -- frontend uses dashboardItemId for updates via 'create' task
@@ -399,7 +430,14 @@ export async function updateReportRemote(reportId: string, updates: Record<strin
 
 // Virtual table listing (uses schema task -- there is no dedicated list-VTs task)
 export async function listVirtualTablesRemote(): Promise<QuillResponse> {
-  return quillFetch({ task: 'schema' });
+  return quillFetch({
+    task: 'schema',
+    metadata: {
+      removeCustomerField: true,
+      removeCustomFieldRef: true,
+      useNewCustomFields: true,
+    },
+  });
 }
 
 // Virtual table update (uses 'view' task with id field -- no separate edit-virtual-table task)
