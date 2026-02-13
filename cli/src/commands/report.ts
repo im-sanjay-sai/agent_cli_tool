@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import * as fs from 'fs/promises';
 import { getCurrentEnv } from '../core/config.js';
 import { requireAuth } from '../core/auth.js';
+import { validateSqlStructure, extractColumns } from '../utils/ast.js';
 import {
   fetchDashboard,
   fetchReport,
@@ -100,6 +101,16 @@ export function registerReportCommands(program: Command): void {
       // Frontend sends 'query'/'queryString' (not 'baseSql') and chart fields at top-level (not nested in 'formatting')
       const sql = parseResult.data.baseSql;
       const formatting = parseResult.data.formatting;
+
+      // Extract referencedTables and referencedColumns from SQL
+      const sqlParse = validateSqlStructure(sql);
+      const referencedTables = sqlParse.tables ?? [];
+      const columns = extractColumns(sql);
+      const referencedColumns: Record<string, string[]> = {};
+      for (const table of referencedTables) {
+        referencedColumns[table] = columns;
+      }
+
       const response = await createReportRemote(options.dashboard, {
         name: parseResult.data.name,
         query: sql,
@@ -110,6 +121,9 @@ export function registerReportCommands(program: Command): void {
         filterMap: parseResult.data.filterMap,
         order: parseResult.data.order || 0,
         useNewNodeSql: true,
+        referencedTables,
+        referencedColumns,
+        columns: (data as Record<string, unknown>).columns,
         // Flatten formatting fields to top-level (backend expects them flat, not nested)
         xAxisLabel: formatting?.xAxisLabel || '',
         xAxisFormat: formatting?.xAxisFormat || 'string',

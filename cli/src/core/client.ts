@@ -119,13 +119,13 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
 // ============= Task-specific API methods =============
 
 // Dashboard tasks
-export async function fetchDashboards(): Promise<QuillResponse> {
-  return quillFetch({ task: 'dashboards' });
+export async function fetchDashboards(tenants?: unknown): Promise<QuillResponse> {
+  return quillFetch({ task: 'dashboards', metadata: { tenants } });
 }
 
 // Frontend uses 'name' (dashboard name) to fetch, not an ID
-export async function fetchDashboard(dashboardName: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'dashboard', metadata: { name: dashboardName, useNewNodeSql: true } });
+export async function fetchDashboard(dashboardName: string, tenants?: unknown): Promise<QuillResponse> {
+  return quillFetch({ task: 'dashboard', metadata: { name: dashboardName, useNewNodeSql: true, tenants } });
 }
 
 // Frontend uses 'name' for the dashboard, with 'newDashboardName' for renames
@@ -151,8 +151,8 @@ export async function setSectionOrder(dashboardName: string, sectionOrder: unkno
 }
 
 // Report tasks
-export async function fetchReport(reportId: string, filters?: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'report', metadata: { reportId, filters } });
+export async function fetchReport(reportId: string, filters?: unknown, tenants?: unknown): Promise<QuillResponse> {
+  return quillFetch({ task: 'report', metadata: { reportId, filters, tenants } });
 }
 
 export async function fetchReportInfo(reportId: string): Promise<QuillResponse> {
@@ -190,8 +190,16 @@ export async function deleteReportRemote(reportId: string): Promise<QuillRespons
 }
 
 // Virtual table tasks -- frontend uses 'view' task with 'id' field
-export async function fetchVirtualTable(viewId: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'view', metadata: { id: viewId, runQueryConfig: { getColumns: true }, useNewNodeSql: true } });
+export async function fetchVirtualTable(viewId: string, customFieldInfo?: unknown): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'view',
+    metadata: {
+      id: viewId,
+      runQueryConfig: { getColumns: true },
+      useNewNodeSql: true,
+      customFieldInfo,
+    },
+  });
 }
 
 export async function createVirtualTableRemote(
@@ -236,13 +244,14 @@ export async function buildFromAst(ast: unknown): Promise<QuillResponse> {
 }
 
 // Schema tasks
-export async function fetchSchema(): Promise<QuillResponse> {
+export async function fetchSchema(tenants?: unknown): Promise<QuillResponse> {
   return quillFetch({
     task: 'schema',
     metadata: {
       removeCustomerField: true,
       removeCustomFieldRef: true,
       useNewCustomFields: true,
+      tenants,
     },
   });
 }
@@ -311,10 +320,6 @@ export async function fetchTenantMapping(dashboardName?: string, tenants?: unkno
 
 export async function fetchViewerTenants(dashboardName?: string): Promise<QuillResponse> {
   return quillFetch({ task: 'viewer-tenants', metadata: { dashboardName } });
-}
-
-export async function fetchMappedTenants(): Promise<QuillResponse> {
-  return quillFetch({ task: 'mapped-tenants' });
 }
 
 // Frontend sends { query, fromTenantField, toTenantField } not { mapping }
@@ -475,6 +480,8 @@ export async function updateVirtualTableRemote(
       runQueryConfig: { getColumns: true },
       useNewNodeSql: true,
       ownerTenantFields: updates.ownerTenantFields,
+      customFieldInfo: updates.customFieldInfo,
+      noCustomerField: updates.noCustomerField,
       ...updates,
     },
   });

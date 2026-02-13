@@ -8,6 +8,7 @@ import {
   updateVirtualTableRemote,
   deleteVirtualTableRemote,
   testVirtualTable,
+  queryVirtualTable,
 } from '../core/client.js';
 import { validateVirtualTable } from '../core/validator.js';
 import { VirtualTableCreateInputSchema } from '../models/index.js';
@@ -93,10 +94,21 @@ export function registerVirtualTableCommands(program: Command): void {
         throw fromZodError(parseResult.error);
       }
       
+      // Run the query first to get column metadata (like the frontend does)
+      let columns: unknown[] | undefined;
+      try {
+        const queryResult = await queryVirtualTable(parseResult.data.sql);
+        const queryData = queryResult.data as Record<string, unknown> | undefined;
+        const queryResults = (queryData?.queryResults as Record<string, unknown>[] | undefined)?.[0];
+        columns = queryResults?.fields as unknown[] | undefined;
+      } catch {
+        // Column extraction failed -- create without columns
+      }
+
       const response = await createVirtualTableRemote(
         parseResult.data.name,
         parseResult.data.sql,
-        undefined,
+        columns,
         parseResult.data.ownerTenantFields,
       );
       

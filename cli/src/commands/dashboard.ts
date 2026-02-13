@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { getCurrentEnv } from '../core/config.js';
 import { requireAuth } from '../core/auth.js';
+import { validateSqlStructure, extractColumns } from '../utils/ast.js';
 import {
   fetchDashboards,
   fetchDashboard,
@@ -299,6 +300,12 @@ export function registerDashboardCommands(program: Command): void {
 
               const sql = reportParse.data.baseSql;
               const fmt = reportParse.data.formatting;
+              const sqlParse = validateSqlStructure(sql);
+              const refTables = sqlParse.tables ?? [];
+              const refCols = extractColumns(sql);
+              const refColumnsMap: Record<string, string[]> = {};
+              for (const t of refTables) { refColumnsMap[t] = refCols; }
+
               const reportResponse = await createReportRemote(dashboardName, {
                 name: reportParse.data.name,
                 query: sql,
@@ -309,6 +316,9 @@ export function registerDashboardCommands(program: Command): void {
                 filterMap: reportParse.data.filterMap,
                 order: reportParse.data.order || createdReports.length,
                 useNewNodeSql: true,
+                referencedTables: refTables,
+                referencedColumns: refColumnsMap,
+                columns: (reportData as Record<string, unknown>).columns,
                 xAxisLabel: fmt?.xAxisLabel || '',
                 xAxisFormat: fmt?.xAxisFormat || 'string',
                 yAxisFields: fmt?.yAxisFields || [],

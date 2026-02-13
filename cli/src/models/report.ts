@@ -154,6 +154,7 @@ export const ReportCreateInputSchema = z.object({
     yAxisFields: z.array(YAxisFieldSchema).optional(),
     showLegend: z.boolean().optional(),
   }).optional(),
+  columns: z.array(ColumnSchema).optional(),
   pivot: PivotSchema.nullable().optional(),
   dateField: DateFieldSchema.optional(),
   filterMap: z.record(FilterMapEntrySchema).optional(),
