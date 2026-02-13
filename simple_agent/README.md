@@ -7,11 +7,16 @@ A simple chat interface backed by a GPT-5.2 agent that can execute Quill CLI com
 ```
 User  →  Next.js Frontend (Vercel)  →  Express Backend (Render)  →  OpenAI GPT-5.2
                                               ↕
-                                        Quill CLI (child_process)
+                                        quill CLI (child_process)
+                                              ↕
+                                        POST /api/quill (same server)
+                                              ↕
+                                        @quillsql/node  →  Quill Cloud + your DB
 ```
 
-- **Frontend**: Next.js + Tailwind CSS chat UI
-- **Backend**: Express + OpenAI Node SDK using `runTools()` helper for automatic tool-call loop
+- **Frontend**: Next.js 15 + Tailwind CSS 4 chat UI (deployed to Vercel)
+- **Backend**: Express + OpenAI Node SDK `runTools()` helper (deployed to Render)
+- **Quill SDK proxy**: The backend also serves `/api/quill` using `@quillsql/node`, which the CLI loops back to for all Quill API calls
 - **Single tool**: `execute_cli_command` — runs any `quill` CLI command and returns the JSON output
 
 ## Local Development
@@ -169,9 +174,10 @@ You already pushed the whole repo in Step 1a. The frontend lives at `simple_agen
 | Setting | Value |
 |---------|-------|
 | **Framework Preset** | Next.js (auto-detected) |
-| **Root Directory** | `simple_agent/frontend` (if using monorepo) or leave blank |
+| **Root Directory** | `simple_agent/frontend` (required -- this is where `package.json` lives) |
 | **Build Command** | Leave default (`next build`) |
 | **Output Directory** | Leave default |
+| **Install Command** | Leave default (`npm install`) |
 
 #### 2c. Set environment variables
 
@@ -179,7 +185,7 @@ In the Vercel project settings → **Environment Variables**:
 
 | Key | Value |
 |-----|-------|
-| `NEXT_PUBLIC_API_URL` | `https://quill-agent-backend.onrender.com` (your Render URL from step 1e) |
+| `NEXT_PUBLIC_API_URL` | `https://quill-agent-backend.onrender.com` (your Render URL from step 1d) |
 
 **Important**: The variable must start with `NEXT_PUBLIC_` to be available in the browser.
 
@@ -211,7 +217,9 @@ Render will auto-redeploy with the new env var.
 
 | Problem | Fix |
 |---------|-----|
-| "Could not reach the backend server" | Check `NEXT_PUBLIC_API_URL` is set correctly in Vercel. Check Render service is running. |
+| "Could not reach the backend server" | Check `NEXT_PUBLIC_API_URL` is set correctly in Vercel env vars. Check Render service is running. |
+| Vercel build fails: "cannot find package" | Make sure **Root Directory** is set to `simple_agent/frontend` in Vercel project settings. |
+| Frontend loads but API calls go to localhost | `NEXT_PUBLIC_API_URL` was not set before building. Add it in Vercel env vars and **redeploy**. |
 | CORS errors in browser console | Update `CORS_ORIGIN` on Render to your exact Vercel domain (no trailing slash). |
 | "Invalid or missing OpenAI API key" | Check `OPENAI_API_KEY` is set in Render environment variables. |
 | Build fails: "cannot find ../../cli" | Make sure **Root Directory** is blank on Render (not `simple_agent/backend`). The build script needs the repo root. |
@@ -249,8 +257,11 @@ Render will auto-redeploy with the new env var.
 2. Frontend sends the full conversation history to `POST /api/chat`
 3. Backend prepends the system prompt (with `developer` role) containing full CLI documentation
 4. Backend calls OpenAI `runTools()` with the `execute_cli_command` tool
-5. If GPT decides to call the tool, the backend executes the `quill` command via `child_process`
-6. The tool result is automatically fed back to GPT by the `runTools` helper
-7. GPT returns a final text response summarizing the result
-8. All messages (including tool calls/results) are sent back to the frontend
-9. Frontend renders everything — user messages, tool call indicators (expandable), and assistant responses
+5. If GPT decides to call the tool, the backend executes the `quill` command via `child_process.execFile`
+6. The CLI reads `.quill/config.json` and sends requests to `POST /api/quill` on the **same backend server**
+7. The `/api/quill` route uses `@quillsql/node` to talk to Quill Cloud and your database
+8. CLI result flows back: DB -> @quillsql/node -> /api/quill -> CLI stdout -> backend
+9. The tool result is automatically fed back to GPT by the `runTools` helper
+10. GPT returns a final text response summarizing the result
+11. All messages (including tool calls/results) are sent back to the frontend
+12. Frontend renders everything — user messages, tool call indicators (expandable), and assistant responses
