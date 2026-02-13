@@ -5,7 +5,6 @@ import { executeCli } from './executeCli';
 const client = new OpenAI();
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5.2';
-const MAX_TOOL_ROUNDS = 5; // Prevent runaway tool-call loops
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'developer' | 'tool';
@@ -25,8 +24,7 @@ export interface ChatResponse {
 }
 
 export async function runAgent(
-  userMessages: ChatMessage[],
-  signal?: AbortSignal
+  userMessages: ChatMessage[]
 ): Promise<ChatResponse> {
   const collectedMessages: ChatMessage[] = [];
 
@@ -41,39 +39,36 @@ export async function runAgent(
   }));
 
   const runner = client.chat.completions
-    .runTools(
-      {
-        model: MODEL,
-        messages: [
-          { role: 'developer', content: SYSTEM_PROMPT },
-          ...formattedMessages,
-        ],
-        tools: [
-          {
-            type: 'function' as const,
-            function: {
-              function: executeCli,
-              parse: JSON.parse,
-              name: 'execute_cli_command',
-              description:
-                'Execute a Quill CLI command. The command must start with "quill". Returns JSON output from the CLI.',
-              parameters: {
-                type: 'object' as const,
-                properties: {
-                  command: {
-                    type: 'string',
-                    description:
-                      'The full quill CLI command to execute, e.g. "quill dashboard list --pretty"',
-                  },
+    .runTools({
+      model: MODEL,
+      messages: [
+        { role: 'developer', content: SYSTEM_PROMPT },
+        ...formattedMessages,
+      ],
+      tools: [
+        {
+          type: 'function' as const,
+          function: {
+            function: executeCli,
+            parse: JSON.parse,
+            name: 'execute_cli_command',
+            description:
+              'Execute a Quill CLI command. The command must start with "quill". Returns JSON output from the CLI.',
+            parameters: {
+              type: 'object' as const,
+              properties: {
+                command: {
+                  type: 'string',
+                  description:
+                    'The full quill CLI command to execute, e.g. "quill dashboard list --pretty"',
                 },
-                required: ['command'],
               },
+              required: ['command'],
             },
           },
-        ],
-      },
-      { signal, maxChatCompletions: MAX_TOOL_ROUNDS }
-    )
+        },
+      ],
+    })
     .on('message', (message: any) => {
       collectedMessages.push(message);
     })

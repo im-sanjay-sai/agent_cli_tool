@@ -7,7 +7,6 @@ import { quillProxyHandler } from './quillProxy';
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
-const REQUEST_TIMEOUT_MS = 120_000; // 2 min max per request (tool calls can chain)
 
 // ---------- Startup validation ----------
 
@@ -43,10 +42,6 @@ app.post('/api/quill', quillProxyHandler);
 
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
-  // Set up a request-level timeout via AbortController
-  const abort = new AbortController();
-  const timeout = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
-
   try {
     const { messages } = req.body as ChatRequest;
 
@@ -68,7 +63,7 @@ app.post('/api/chat', async (req, res) => {
 
     console.log(`[chat] Received ${messages.length} messages`);
 
-    const result = await runAgent(messages, abort.signal);
+    const result = await runAgent(messages);
 
     console.log(
       `[chat] Agent responded with ${result.messages.length} new messages`
@@ -79,15 +74,6 @@ app.post('/api/chat', async (req, res) => {
       finalContent: result.finalContent,
     });
   } catch (err: any) {
-    // Distinguish abort/timeout from other errors
-    if (err.name === 'AbortError' || abort.signal.aborted) {
-      console.error('[chat] Request timed out');
-      res.status(504).json({
-        error: 'Request timed out. The agent took too long to respond.',
-      });
-      return;
-    }
-
     console.error('[chat] Error:', err.message);
 
     // Surface useful OpenAI errors to the client
@@ -98,8 +84,6 @@ app.post('/api/chat', async (req, res) => {
         : err.message || 'Internal server error';
 
     res.status(status).json({ error: message });
-  } finally {
-    clearTimeout(timeout);
   }
 });
 
