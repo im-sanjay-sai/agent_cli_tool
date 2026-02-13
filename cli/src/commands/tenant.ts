@@ -18,10 +18,11 @@ export function registerTenantCommands(program: Command): void {
   tenantCmd
     .command('list')
     .description('List available tenants')
-    .action(withErrorHandling(async () => {
+    .requiredOption('--dashboard <name>', 'Dashboard name (required by the API)')
+    .action(withErrorHandling(async (options) => {
       await requireAuth();
       
-      const response = await fetchViewerTenants();
+      const response = await fetchViewerTenants(options.dashboard);
       
       if (response.error) {
         throw networkError(response.error);
@@ -39,10 +40,11 @@ export function registerTenantCommands(program: Command): void {
   mappingCmd
     .command('get')
     .description('Get tenant mappings')
-    .action(withErrorHandling(async () => {
+    .requiredOption('--dashboard <name>', 'Dashboard name (required by the API)')
+    .action(withErrorHandling(async (options) => {
       await requireAuth();
       
-      const response = await fetchTenantMapping();
+      const response = await fetchTenantMapping(options.dashboard);
       
       if (response.error) {
         throw networkError(response.error);

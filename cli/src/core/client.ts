@@ -1,6 +1,6 @@
 import { getMergedConfig } from './config.js';
 import { getToken } from './auth.js';
-import { networkError, CliError } from '../output/errors.js';
+import { networkError, notFound, invalidInput, authRequired, CliError } from '../output/errors.js';
 import { verbose } from '../output/formatter.js';
 
 // Default Quill server URL
@@ -74,11 +74,26 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw networkError(`API request failed: ${response.status} ${response.statusText}`, {
-        status: response.status,
-        body: errorText,
-      });
+      // Parse error body -- API may return JSON with error/message fields
+      let errorMsg: string;
+      try {
+        const body = await response.json() as Record<string, unknown>;
+        errorMsg = (body.error || body.message || `${response.status} ${response.statusText}`) as string;
+      } catch {
+        errorMsg = await response.text().catch(() => `${response.status} ${response.statusText}`);
+      }
+      // Map HTTP status to proper error types instead of always NETWORK_ERROR
+      switch (response.status) {
+        case 400:
+          throw invalidInput(errorMsg);
+        case 401:
+        case 403:
+          throw authRequired(errorMsg);
+        case 404:
+          throw notFound(errorMsg);
+        default:
+          throw networkError(`API error: ${errorMsg}`, { status: response.status });
+      }
     }
     
     const result = await response.json() as Record<string, unknown>;

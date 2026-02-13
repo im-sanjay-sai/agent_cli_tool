@@ -16,6 +16,7 @@ import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { invalidInput, fromZodError, networkError } from '../output/errors.js';
+import { requireValidId } from '../utils/id.js';
 
 export function registerVirtualTableCommands(program: Command): void {
   const vtCmd = program
@@ -45,7 +46,6 @@ export function registerVirtualTableCommands(program: Command): void {
         virtualTables.map(t => ({
           id: t._id,
           name: t.name ?? t.displayName,
-          viewQuery: t.viewQuery,
           columnCount: (t.columns as unknown[])?.length ?? 0,
           ownerTenantFields: t.ownerTenantFields,
           broken: t.broken,
@@ -60,6 +60,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .description('Show virtual table details')
     .argument('<id>', 'Virtual table ID')
     .action(withErrorHandling(async (id) => {
+      requireValidId(id, 'virtual table');
       await requireAuth();
       const env = await getCurrentEnv();
       const response = await fetchVirtualTable(id);
@@ -134,6 +135,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .option('--sql <query>', 'New SQL query')
     .option('--owner-fields <fields>', 'Comma-separated owner tenant fields')
     .action(withErrorHandling(async (id, options) => {
+      requireValidId(id, 'virtual table');
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -165,6 +167,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .argument('<id>', 'Virtual table ID')
     .option('--force', 'Skip confirmation')
     .action(withErrorHandling(async (id, options) => {
+      requireValidId(id, 'virtual table');
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -191,6 +194,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .description('Test virtual table query')
     .argument('<id>', 'Virtual table ID')
     .action(withErrorHandling(async (id) => {
+      requireValidId(id, 'virtual table');
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -212,6 +216,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .description('Validate virtual table configuration')
     .argument('<id>', 'Virtual table ID')
     .action(withErrorHandling(async (id) => {
+      requireValidId(id, 'virtual table');
       await requireAuth();
       const env = await getCurrentEnv();
       

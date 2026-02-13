@@ -67,7 +67,8 @@ export function registerDashboardCommands(program: Command): void {
     .command('show')
     .description('Show dashboard details')
     .argument('<name>', 'Dashboard name')
-    .action(withErrorHandling(async (name) => {
+    .option('--full', 'Output the full raw dashboard data (warning: can be very large)')
+    .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       const env = await getCurrentEnv();
       const response = await fetchDashboard(name);
@@ -75,8 +76,32 @@ export function registerDashboardCommands(program: Command): void {
       if (response.error) {
         throw networkError(response.error);
       }
+
+      if (options.full) {
+        output(success(response.data, { source: 'remote', env }));
+        return;
+      }
       
-      output(success(response.data, { source: 'remote', env }));
+      // Summary view by default -- the raw data can be 100s of KBs
+      const data = response.data as Record<string, unknown> | undefined;
+      const sections = (data?.sections ?? {}) as Record<string, unknown[]>;
+      const sectionSummary: Record<string, number> = {};
+      let totalReports = 0;
+      for (const [sectionName, reports] of Object.entries(sections)) {
+        const label = sectionName || '(default)';
+        sectionSummary[label] = reports.length;
+        totalReports += reports.length;
+      }
+      
+      output(success({
+        name: data?.name,
+        totalReports,
+        sections: sectionSummary,
+        filterCount: (data?.filters as unknown[])?.length ?? 0,
+        filters: data?.filters,
+        sectionOrder: data?.sectionOrder,
+        tenantKeys: data?.tenantKeys,
+      }, { source: 'remote', env }));
     }));
 
   // Create dashboard

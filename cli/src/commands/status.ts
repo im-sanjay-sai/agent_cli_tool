@@ -31,9 +31,18 @@ export function registerStatusCommand(program: Command): void {
           verbose('Testing database connection...');
           const connResponse = await testConnection();
           const connData = connResponse.data as Record<string, unknown> | undefined;
+          // Check multiple possible success indicators from the API
+          const hasError = connResponse.error || connResponse.status === 'error';
           connectionStatus = {
-            connected: connData?.success === true,
-            message: (connData?.message as string) || connResponse.error || 'Unknown',
+            connected: !hasError && (
+              connData?.success === true ||
+              connData?.connected === true ||
+              connData?.ok === true ||
+              connResponse.status === 'success'
+            ),
+            message: hasError
+              ? (connResponse.error || 'Connection failed')
+              : ((connData?.message as string) || 'Connected'),
           };
         } catch (err) {
           connectionStatus = {

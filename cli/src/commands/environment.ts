@@ -15,6 +15,7 @@ import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successDeleted } from '../output/success.js';
 import { invalidInput, networkError } from '../output/errors.js';
+import { requireValidId } from '../utils/id.js';
 
 export function registerEnvironmentCommands(program: Command): void {
   const envCmd = program
@@ -36,7 +37,17 @@ export function registerEnvironmentCommands(program: Command): void {
       }
       
       const clientsData = response.data as Record<string, unknown> | undefined;
-      output(successList((clientsData?.clients || []) as unknown[], { source: 'remote' }));
+      const clients = (clientsData?.clients || []) as Record<string, unknown>[];
+      // Only output essential fields -- raw client objects can be 71KB+
+      output(successList(
+        clients.map(c => ({
+          id: c._id || c.clientId,
+          name: c.name,
+          databaseType: c.databaseType,
+          schemaNames: c.schemaNames,
+        })),
+        { source: 'remote' }
+      ));
     }));
 
   // Show environment
@@ -74,6 +85,7 @@ export function registerEnvironmentCommands(program: Command): void {
     .argument('<id>', 'Client/environment ID')
     .requiredOption('--file <path>', 'JSON file: { name?, schemaNames?, databaseType?, databaseConnectionString? }')
     .action(withErrorHandling(async (id, options) => {
+      requireValidId(id, 'environment');
       await requireAuth();
       
       const content = await fs.readFile(options.file, 'utf-8');
@@ -100,6 +112,7 @@ export function registerEnvironmentCommands(program: Command): void {
     .argument('<id>', 'Client/environment ID')
     .option('--force', 'Skip confirmation')
     .action(withErrorHandling(async (id, options) => {
+      requireValidId(id, 'environment');
       await requireAuth();
       
       if (!options.force) {

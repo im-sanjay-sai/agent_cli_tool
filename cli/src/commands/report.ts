@@ -17,6 +17,7 @@ import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { fromZodError, networkError } from '../output/errors.js';
+import { requireValidId } from '../utils/id.js';
 
 export function registerReportCommands(program: Command): void {
   const reportCmd = program
@@ -65,6 +66,7 @@ export function registerReportCommands(program: Command): void {
     .description('Show report details')
     .argument('<id>', 'Report ID')
     .action(withErrorHandling(async (id) => {
+      requireValidId(id, 'report');
       await requireAuth();
       const env = await getCurrentEnv();
       const response = await fetchReportInfo(id);
@@ -145,6 +147,7 @@ export function registerReportCommands(program: Command): void {
     .argument('<id>', 'Report ID')
     .requiredOption('--file <path>', 'JSON file with fields to update (any report fields)')
     .action(withErrorHandling(async (id, options) => {
+      requireValidId(id, 'report');
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -167,6 +170,7 @@ export function registerReportCommands(program: Command): void {
     .argument('<id>', 'Report ID')
     .option('--force', 'Skip confirmation')
     .action(withErrorHandling(async (id, options) => {
+      requireValidId(id, 'report');
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -194,6 +198,7 @@ export function registerReportCommands(program: Command): void {
     .argument('<id>', 'Report ID')
     .option('--filters <path>', 'JSON file with filters')
     .action(withErrorHandling(async (id, options) => {
+      requireValidId(id, 'report');
       await requireAuth();
       const env = await getCurrentEnv();
       
@@ -227,6 +232,7 @@ export function registerReportCommands(program: Command): void {
     .description('Validate report configuration')
     .argument('<id>', 'Report ID')
     .action(withErrorHandling(async (id) => {
+      requireValidId(id, 'report');
       await requireAuth();
       const env = await getCurrentEnv();
       
