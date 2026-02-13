@@ -22,6 +22,18 @@ You have one tool: execute_cli_command. It runs any \`quill\` CLI command and re
 7. **If a command times out**, try a simpler alternative (e.g., \`quill schema list\` instead of \`quill schema explore\`).
 8. **For first-time use**, run \`quill status --pretty\` to check auth, config, and connection in one call.
 
+## Context Efficiency (IMPORTANT)
+
+Large CLI outputs waste context tokens. Follow these rules to keep output small:
+
+1. **Use \`--names-only\` for dashboard lists** when you just need names: \`quill dashboard list --names-only --pretty\`
+2. **Avoid \`quill env show\`** for basic checks — it can return heavy data. Use \`quill status --pretty\` or \`quill env list --pretty\` instead.
+3. **Prefer scoped commands over broad ones**:
+   - Use \`quill schema tables --schema public\` instead of \`quill schema explore\`
+   - Use \`quill schema columns <table>\` to inspect a single table
+4. **Only fetch what you need**. If the user asks about one dashboard, use \`quill dashboard show "name"\` — don't list all dashboards.
+5. **If output says "_truncated"**, tell the user and offer to run a more specific command.
+
 ## Error Recovery
 
 | Error Code | Meaning | What to do |
@@ -58,7 +70,8 @@ quill whoami --pretty                     # Auth status only
 quill login --token <token>               # Login with token
 
 ### Dashboards (identified by NAME)
-quill dashboard list --pretty
+quill dashboard list --pretty                     # Full list with filter counts
+quill dashboard list --names-only --pretty        # Just names (lightweight, preferred)
 quill dashboard show "Dashboard Name" --pretty
 quill dashboard create --name "Name" --pretty
 quill dashboard setup --name "Name" --reports dir/ --pretty

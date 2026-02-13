@@ -91,10 +91,41 @@ export async function executeCli(args: { command: string }): Promise<string> {
         const result =
           stdout?.trim() ||
           '{"ok": true, "data": {"message": "Command executed successfully (no output)"}}';
-        resolve(result);
+        resolve(truncateOutput(result));
       }
     );
   });
+}
+
+/**
+ * Truncate large CLI output to avoid bloating the LLM context.
+ * Cap at ~4KB. If truncated, append a note so the LLM knows.
+ */
+const MAX_OUTPUT_CHARS = 4096;
+
+function truncateOutput(output: string): string {
+  if (output.length <= MAX_OUTPUT_CHARS) return output;
+
+  // Try to preserve valid JSON structure by truncating the data
+  try {
+    const parsed = JSON.parse(output);
+    if (parsed.ok && parsed.data) {
+      // If it's a list, truncate the items array
+      if (Array.isArray(parsed.data.items) && parsed.data.items.length > 10) {
+        const total = parsed.data.items.length;
+        parsed.data.items = parsed.data.items.slice(0, 10);
+        parsed.data._truncated = `Showing 10 of ${total} items. Use more specific commands to narrow results.`;
+        return JSON.stringify(parsed);
+      }
+    }
+  } catch {
+    // Not valid JSON, fall through to raw truncation
+  }
+
+  return (
+    output.slice(0, MAX_OUTPUT_CHARS) +
+    '\n... (output truncated at 4KB. Use more specific commands to get focused results.)'
+  );
 }
 
 /**

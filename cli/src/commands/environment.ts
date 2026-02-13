@@ -56,9 +56,14 @@ export function registerEnvironmentCommands(program: Command): void {
       const rawData = response.data as Record<string, unknown> | undefined;
       // Frontend reads data.environment or data directly
       const envData = (rawData?.environment ?? rawData) as Record<string, unknown> | undefined;
+      // Only output useful fields -- the raw response includes ALL dashboards
+      // and other heavy data that bloats output (especially for LLM agents).
       output(success({
         currentEnv,
-        ...(envData || {}),
+        name: envData?.name,
+        clientId: envData?.clientId || envData?._id,
+        databaseType: envData?.databaseType,
+        schemaNames: envData?.schemaNames,
       }, { source: 'remote' }));
     }));
 

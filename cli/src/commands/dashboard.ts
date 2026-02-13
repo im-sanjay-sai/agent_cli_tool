@@ -52,16 +52,9 @@ export function registerDashboardCommands(program: Command): void {
       
       output(successList(
         dashboards.map(d => {
-          // sections is { sectionName: Report[] } -- flatten to count reports
-          const sections = d.sections as Record<string, unknown[]> | undefined;
-          const reportCount = sections
-            ? Object.values(sections).reduce((sum, reports) => sum + reports.length, 0)
-            : 0;
           const filterCount = (d.filters as unknown[])?.length ?? 0;
           return {
-            id: d._id,
             name: d.name,
-            reportCount,
             filterCount,
           };
         }),
