@@ -22,6 +22,7 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--from <clientId>', 'Source environment client ID')
     .requiredOption('--to <clientId>', 'Target environment client ID')
     .option('--auto-resolve', 'Automatically resolve conflicts (e.g. add missing tables)')
+    .option('--skip-warning', 'Skip promotion warnings')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       
@@ -31,6 +32,7 @@ export function registerPromoteCommands(program: Command): void {
       
       const response = await promoteDashboardRemote(name, options.from, options.to, {
         addMissingTables: options.autoResolve,
+        skipWarning: options.skipWarning,
       });
       
       if (response.error) {
@@ -55,6 +57,8 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--dashboard <name>', 'Dashboard name the report belongs to')
     .requiredOption('--from <clientId>', 'Source environment client ID')
     .requiredOption('--to <clientId>', 'Target environment client ID')
+    .option('--auto-resolve', 'Automatically add missing virtual tables')
+    .option('--skip-warning', 'Skip promotion warnings')
     .action(withErrorHandling(async (id, options) => {
       await requireAuth();
       
@@ -62,7 +66,10 @@ export function registerPromoteCommands(program: Command): void {
         throw invalidInput('--from and --to must be different environments');
       }
       
-      const response = await promoteReportRemote(id, options.dashboard, options.from, options.to);
+      const response = await promoteReportRemote(id, options.dashboard, options.from, options.to, {
+        addMissingTables: options.autoResolve,
+        skipWarning: options.skipWarning,
+      });
       
       if (response.error) {
         throw networkError(response.error);
@@ -85,6 +92,7 @@ export function registerPromoteCommands(program: Command): void {
     .argument('<name>', 'Virtual table name')
     .requiredOption('--from <clientId>', 'Source environment client ID')
     .requiredOption('--to <clientId>', 'Target environment client ID')
+    .option('--skip-warning', 'Skip promotion warnings')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
       
@@ -92,7 +100,9 @@ export function registerPromoteCommands(program: Command): void {
         throw invalidInput('--from and --to must be different environments');
       }
       
-      const response = await promoteVTRemote(name, options.from, options.to);
+      const response = await promoteVTRemote(name, options.from, options.to, {
+        skipWarning: options.skipWarning,
+      });
       
       if (response.error) {
         throw networkError(response.error);

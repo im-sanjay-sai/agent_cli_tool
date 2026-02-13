@@ -110,7 +110,9 @@ export function registerDashboardCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successCreated(response.data, { source: 'remote', env }));
+      // Frontend reads data.dashboard from response
+      const rawData = response.data as Record<string, unknown> | undefined;
+      output(successCreated(rawData?.dashboard ?? rawData, { source: 'remote', env }));
     }));
 
   // Update dashboard
@@ -145,7 +147,9 @@ export function registerDashboardCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote', env }));
+      // Frontend reads data.dashboard from response
+      const updateRawData = response.data as Record<string, unknown> | undefined;
+      output(successUpdated(updateRawData?.dashboard ?? updateRawData, { source: 'remote', env }));
     }));
 
   // Delete dashboard

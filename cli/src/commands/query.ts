@@ -145,9 +145,10 @@ export function registerQueryCommands(program: Command): void {
         throw networkError(response.error);
       }
       
+      // Frontend reads data.query from sqlify response
       const buildData = response.data as Record<string, unknown> | undefined;
       output(success({
-        sql: buildData?.sql,
+        sql: buildData?.query ?? buildData?.sql,
       }, { source: 'remote' }));
     }));
 

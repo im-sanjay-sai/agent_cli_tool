@@ -48,9 +48,23 @@ export function registerTenantCommands(program: Command): void {
         throw networkError(response.error);
       }
       
+      // Frontend parses data.queryOrder + queries.queryResults for the mapping data
       const mappingsData = response.data as Record<string, unknown> | undefined;
+      const queriesData = response.queries as Record<string, unknown> | undefined;
+      const queryOrder = (mappingsData?.queryOrder ?? []) as string[];
+      const queryResults = (queriesData?.queryResults ?? []) as Record<string, unknown>[];
+
+      const mappings: Record<string, unknown[]> = {};
+      queryOrder.forEach((field: string, index: number) => {
+        const result = queryResults[index];
+        if (result?.rows) {
+          mappings[field] = (result.rows as Record<string, unknown>[]).map(row => row[field]);
+        }
+      });
+
       output(success({
-        mappings: mappingsData?.mappings || mappingsData,
+        mappings: Object.keys(mappings).length > 0 ? mappings : mappingsData,
+        queryOrder,
       }, { source: 'remote' }));
     }));
 

@@ -72,7 +72,10 @@ export function registerReportCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(success(response.data, { source: 'remote', env }));
+      // Frontend reads data.report from the response
+      const rawData = response.data as Record<string, unknown> | undefined;
+      const reportData = rawData?.report ?? rawData;
+      output(success(reportData, { source: 'remote', env }));
     }));
 
   // Create report

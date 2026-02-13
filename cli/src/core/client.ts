@@ -159,6 +159,26 @@ export async function fetchReportInfo(reportId: string): Promise<QuillResponse> 
   return quillFetch({ task: 'report-info', metadata: { reportId } });
 }
 
+// Paginated/sorted report fetch (frontend uses 'item' task)
+export async function fetchReportItem(
+  reportId: string,
+  options?: { page?: number; sort?: { field: string; direction: string }; rowsOnly?: boolean; rowCountOnly?: boolean }
+): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'item',
+    metadata: {
+      dashboardItemId: reportId,
+      forcePagination: true,
+      additionalProcessing: {
+        page: options?.page ? { currentPage: options.page, rowsPerPage: 100 } : undefined,
+        sort: options?.sort,
+      },
+      rowsOnly: options?.rowsOnly,
+      rowCountOnly: options?.rowCountOnly,
+    },
+  });
+}
+
 // Frontend uses dashboardName for the create task
 export async function createReportRemote(dashboardName: string, report: Record<string, unknown>): Promise<QuillResponse> {
   return quillFetch({ task: 'create', metadata: { dashboardName, ...report } });

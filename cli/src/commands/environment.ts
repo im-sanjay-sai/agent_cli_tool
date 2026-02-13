@@ -53,7 +53,9 @@ export function registerEnvironmentCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      const envData = response.data as Record<string, unknown> | undefined;
+      const rawData = response.data as Record<string, unknown> | undefined;
+      // Frontend reads data.environment or data directly
+      const envData = (rawData?.environment ?? rawData) as Record<string, unknown> | undefined;
       output(success({
         currentEnv,
         ...(envData || {}),
