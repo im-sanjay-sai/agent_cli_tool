@@ -71,9 +71,8 @@ export async function runAgent(
             },
           },
         ],
-        maxChatCompletions: MAX_TOOL_ROUNDS,
       },
-      { signal }
+      { signal, maxChatCompletions: MAX_TOOL_ROUNDS }
     )
     .on('message', (message: any) => {
       collectedMessages.push(message);
