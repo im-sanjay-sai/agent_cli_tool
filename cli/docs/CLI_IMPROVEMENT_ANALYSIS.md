@@ -1,349 +1,197 @@
-# CLI Improvement Analysis: Making Quill CLI Agent-Ready
+# CLI Improvement Analysis: Remaining Issues
 
-Deep analysis of the CLI from the perspective of an AI agent (Claude Code, Cursor, etc.) that needs to use this CLI by reading its help text and documentation.
+Updated analysis after all Priority 1-5 fixes have been applied. This document tracks only **issues that still exist** in the current codebase.
 
----
+**Previous status:** 34 issues found, 19 of 22 recommendations implemented.
 
-## Executive Summary
-
-The CLI has a strong foundation -- structured JSON output, consistent `{ok: true/false}` response envelope, error codes with suggestions, and a `withErrorHandling` wrapper. However, there are **critical documentation mismatches**, **inconsistent identifier types**, **undocumented JSON schemas**, and **silent failures** that would cause an AI agent to fail, guess wrong, or waste tokens.
-
-**34 issues found: 6 Critical, 8 High, 12 Medium, 8 Low**
+**Current status:** 13 remaining issues (1 Critical, 5 Medium, 7 Low)
 
 ---
 
-## Critical Issues (Agent Will Call Wrong Commands)
+## Critical
 
-### C1. README shows wrong interface for `ai pivot`
+### 1. `--env` Commander default breaks the entire environment cascade
 
-**README says:**
-```bash
-quill ai pivot "Group revenue by product category" --report <id>
-```
-
-**Code actually expects:**
-```bash
-quill ai pivot --file pivot-config.json
-```
-
-No positional argument. No `--report` flag. Requires `--file` with structured JSON. An agent following the README will get a parse error every time.
-
-**File:** `src/commands/ai.ts` line 69 vs README line 269
-
-### C2. README shows wrong interface for `tenant validate`
-
-**README says:**
-```bash
-quill tenant validate --file mapping.json
-```
-
-**Code actually expects:**
-```bash
-quill tenant validate --query "SELECT ..." --from-field tenant_id --to-field org_id
-```
-
-No `--file` flag. Three separate required options. Completely different invocation.
-
-**File:** `src/commands/tenant.ts` line 72 vs README line 324
-
-### C3. README shows `--from staging --to prod` but code expects client IDs
-
-**README says:**
-```bash
-quill promote dashboard <id> --from staging --to prod
-```
-
-**Code expects:**
-```bash
-quill promote dashboard <name> --from <clientId> --to <clientId>
-```
-
-Three mismatches: argument is `<name>` not `<id>`, and `--from`/`--to` expect MongoDB client IDs not environment names.
-
-**File:** `src/commands/promote.ts` line 22-24 vs README line 224-234
-
-### C4. README shows `<dashboard-id>` but code takes `<name>`
-
-All dashboard commands in README use `<dashboard-id>` but the actual CLI takes `<name>`:
-
-```bash
-# README says:
-quill dashboard show <dashboard-id>
-
-# Code expects:
-quill dashboard show <name>
-```
-
-Affects: `show`, `update`, `delete`, `set-filters`, `set-section-order`
-
-**File:** `src/commands/dashboard.ts` line 65-67 vs README line 154
-
-### C5. `config set` corrupts numeric strings
-
-```bash
-quill config set --global token 1234567890
-```
-
-Stores `1234567890` as a **Number**, not a string. The Zod schema expects `z.string()` for tokens. Authentication will silently break.
-
-**File:** `src/commands/config.ts` line 99-103
+The global flag in `cli.ts` has a default value of `'staging'`:
 
 ```typescript
-else if (!isNaN(Number(value))) parsedValue = Number(value);
+.option('--env <environment>', 'Target environment (staging|prod)', 'staging')
 ```
 
-### C6. `confirmDeletion` auto-confirms in non-TTY (dangerous in CI)
-
-When `process.stdin.isTTY` is false (agents, CI pipelines), delete commands proceed without confirmation even without `--force`:
+Commander sets `opts.env` to `'staging'` even when the user doesn't pass `--env`. Then `getCurrentEnv()` checks:
 
 ```typescript
-if (!process.stdin.isTTY) {
-  return true;  // silently auto-confirms
+if (opts.env && (opts.env === 'staging' || opts.env === 'prod')) {
+  return opts.env as Environment;  // always hits this branch
 }
 ```
 
-An agent accidentally running `quill dashboard delete "Production Dashboard"` will succeed without any safety gate.
+This is **always true** because the default guarantees `opts.env === 'staging'`. The entire fallback chain is dead code:
+- `QUILL_ENV` env var -- never checked
+- Project config `currentEnv` -- never checked
+- Global config `defaultEnv` -- never checked
+- `quill env switch prod` -- has no effect (next command reverts to staging)
 
-**File:** `src/utils/confirm.ts` line 12
-
----
-
-## High Issues (Agent Automation Blockers)
-
-### H1. Only `QUILL_API_TOKEN` env var exists
-
-An agent/CI cannot configure the CLI purely through env vars:
-
-| Setting | Env Var? | Workaround |
-|---------|---------|------------|
-| API Token | `QUILL_API_TOKEN` | -- |
-| Server URL | **NO** | `quill config set --global serverUrl` |
-| Query Endpoint | **NO** | `quill config set queryEndpoint` |
-| Client ID | **NO** | `quill config set clientId` or `quill init --client-id` |
-| Default Environment | **NO** | `quill config set --global defaultEnv` or `--env` flag |
-
-**Needed:** `QUILL_SERVER_URL`, `QUILL_QUERY_ENDPOINT`, `QUILL_CLIENT_ID`, `QUILL_ENV`
-
-### H2. `--file` options don't document expected JSON shape
-
-Every command with `--file` says something vague:
-
-| Command | Help text |
-|---------|-----------|
-| `dashboard create --file` | "JSON file with full dashboard config" |
-| `report create --file` | "JSON file with report config" |
-| `report update --file` | "JSON file with updates" |
-| `env update --file` | "JSON file with updates" |
-| `dashboard set-filters --file` | "JSON file with filters" |
-| `dashboard set-section-order --file` | "JSON file with section order" |
-| `ai pivot --file` | Best -- lists field names in description |
-
-An agent has no way to know the JSON schema without reading source code.
-
-### H3. Inconsistent `<id>` vs `<name>` across resource types
-
-| Resource | CRUD commands | Promote commands |
-|----------|--------------|-----------------|
-| Dashboard | `<name>` | `<name>` |
-| Report | `<id>` | `<id>` |
-| Virtual Table | `<id>` | `<name>` |
-
-Virtual tables use `<id>` for CRUD but `<name>` for promote. An agent working with VTs needs to track both and know which to use where.
-
-### H4. No `--file` input validation on update commands
-
-6 commands pass raw JSON directly to the API with no validation:
-
-- `dashboard update --file`
-- `dashboard set-section-order --file`
-- `report update --file`
-- `env update --file`
-- `query run --filters`
-- `report run --filters`
-
-Invalid JSON shapes silently pass through to the API and produce cryptic server errors.
-
-### H5. `promote` commands lack `--dry-run`
-
-Promotion overwrites resources in the target environment. There's `--skip-warning` and `--auto-resolve` but no `--dry-run` to preview what would change. An agent cannot safely test a promotion.
-
-### H6. `schema test-connection` returns `ok: true` on connection failure
-
-```json
-{ "ok": true, "data": { "connected": false, "message": "Connection refused" } }
-```
-
-Exit code 0, `ok: true`. An agent checking `ok` or exit code thinks the connection succeeded. Only `data.connected` reveals the truth.
-
-**File:** `src/commands/schema.ts` line 96-101
-
-### H7. `query run --auto-fix` failure returns `ok: true`
-
-When both original and AI-fixed SQL fail, the response is `ok: true` with `data.autoFix.resolved: false` and empty rows. An agent would need to check `data.autoFix.resolved` specifically.
-
-**File:** `src/commands/query.ts` line 50-72
-
-### H8. Example JSON files don't match current code
-
-`examples/report.json` uses `baseSql` but the API now expects `query`/`queryString`. The examples haven't been updated to reflect the field name changes made in the audit fixes.
-
----
-
-## Medium Issues (Code Quality / Edge Cases)
-
-### M1. `--json` flag is a no-op
-
-The `--json` flag defaults to `true` and is never checked. Output is always JSON. There's no human-readable mode. The flag confuses agents into thinking it needs to be explicitly passed.
-
-**File:** `src/cli.ts` line 24
-
-### M2. ~100 lines of dead code in formatter.ts
-
-`prettyPrint()`, `formatTable()`, `formatObject()`, `outputSuccess()`, `info()`, `warn()` are defined but never called by any command.
-
-**File:** `src/output/formatter.ts` lines 30-176
-
-### M3. Chalk ANSI codes in stderr not suppressed for non-TTY
-
-`verbose()`, `warn()`, `info()` use chalk colors on stderr. When piped, ANSI escape codes pollute log files.
-
-**File:** `src/output/formatter.ts` lines 52-73
-
-### M4. `fromUnknown()` matches 'fetch' substring too broadly
+**Fix:** Remove the Commander default. Use `undefined` as the absence marker:
 
 ```typescript
-if (error.message.includes('fetch'))
+.option('--env <environment>', 'Target environment (staging|prod)')
 ```
 
-Any error containing "fetch" (e.g., "failed to fetch user preferences") gets misclassified as `NETWORK_ERROR`.
+Then in `getCurrentEnv()`, only use `opts.env` when it's explicitly set.
+
+---
+
+## Medium
+
+### 2. `fromUnknown()` 'fetch' substring match too broad
+
+```typescript
+if (error.message.includes('ECONNREFUSED') || error.message.includes('fetch')) {
+```
+
+Any error containing "fetch" (e.g., "failed to fetch column metadata") gets misclassified as `NETWORK_ERROR`.
+
+**Fix:** Match `'Failed to fetch'` or `'TypeError: fetch'` instead of bare `'fetch'`.
 
 **File:** `src/output/errors.ts` line 169
 
-### M5. `successDeleted` wraps dashboard name as `id`
+### 3. `successDeleted` wraps dashboard name as `id`
 
-`successDeleted(name, 'dashboard', ...)` produces `{ deleted: { id: "My Dashboard" } }`. The `name` is semantically not an `id`.
+`successDeleted(name, 'dashboard', ...)` produces `{ deleted: { id: "Sales Analytics" } }`. Dashboards use names, not IDs. Semantically wrong.
 
-**File:** `src/commands/dashboard.ts` line 180
+**Fix:** Either rename the field to `identifier` or add a `name` field alongside `id`.
 
-### M6. `getMergedConfig().token` skips env var check
+**File:** `src/output/success.ts` line 95, `src/commands/dashboard.ts` line 195
 
-`getMergedConfig()` resolves token from flag or config file but not `QUILL_API_TOKEN`. Code calling `getMergedConfig().token` directly would miss env var tokens.
-
-**File:** `src/core/config.ts` line 283
-
-### M7. `as any` casts in `config set` bypass type safety
+### 4. `as any` casts in `config set`
 
 ```typescript
 await setGlobalConfigValue(key as any, parsedValue as any);
+await setProjectConfigValue(key as any, parsedValue as any);
 ```
+
+Bypasses type safety. Could store wrong types.
+
+**Fix:** Use a validated key map or type assertion with runtime check.
 
 **File:** `src/commands/config.ts` lines 111, 118
 
-### M8. `vt create` silently swallows column extraction failure
+### 5. Missing `env` in `meta` for schema/tenant/environment commands
 
-If `queryVirtualTable()` fails, the VT is created without columns and no warning is emitted.
+Dashboard, report, and VT commands include `{ source: 'remote', env }` in metadata. But schema, tenant, and environment commands only include `{ source: 'remote' }` with no `env` field. An agent checking `meta.env` to verify the target environment gets `undefined`.
 
-**File:** `src/commands/virtual-table.ts` lines 98-106
+**Fix:** Add `const env = await getCurrentEnv()` and include in meta for all schema/tenant/env commands.
 
-### M9. `dashboard create --name` silently ignored when `--file` is provided
+### 6. `--env` flag collision between global and `init`
 
-`--name` is required but when `--file` is also given, `--name` is discarded. No warning.
+Global `--env` means "target this environment for this operation." Init's `--env` means "set default environment persistently." Same flag, different semantics. `quill --env prod init` is ambiguous.
 
-**File:** `src/commands/dashboard.ts` lines 90-97
+**Fix:** Rename init's flag to `--default-env`.
 
-### M10. Missing `env` in meta for schema/tenant commands
-
-`schema`, `tenant`, and `environment` commands don't include the environment in their response metadata, unlike dashboard/report/VT commands.
-
-### M11. `--env` flag collision between global and `init`
-
-Global `--env` means "target this environment for this operation." `init --env` means "set default environment persistently." Different semantics, same flag name.
-
-**File:** `src/cli.ts` line 23 vs `src/commands/init.ts` line 16
-
-### M12. Version hardcoded instead of reading from package.json
-
-```typescript
-.version('0.1.0')
-```
-
-Should read from `package.json` so it stays in sync.
-
-**File:** `src/cli.ts` line 22
+**File:** `src/cli.ts` line 30 vs `src/commands/init.ts` line 16
 
 ---
 
-## Low Issues (Nice-to-Have)
+## Low
 
-### L1. `login` without `--token` is interactive-only
+### 7. `login` without `--token` has no non-TTY guard
 
-Device code flow opens browser and uses spinner. No warning in `--help` that this is agent-incompatible.
+Calling `quill login` without `--token` starts the device code flow (opens browser, hangs). No `isTTY` check to fail fast in non-interactive environments. README warns about it, but the CLI itself doesn't protect agents.
 
-### L2. `logout` has no confirmation
+**Fix:** Add `if (!process.stdin.isTTY && !options.token)` check that returns structured error.
 
-Silently clears all credentials without `--force` or any prompt.
+**File:** `src/commands/auth.ts`
 
-### L3. `promote` commands lack `--force` for destructive overwrites
+### 8. No `--timeout` global flag
 
-`--skip-warning` exists but isn't the same as a confirmation gate.
+Timeout is hardcoded to 30s in `client.ts`. No way to increase for slow operations.
 
-### L4. No `--file-template` or `--example` subcommand
+**Fix:** Add `--timeout <ms>` global flag, pass to `quillFetch`.
 
-No way for an agent to programmatically discover the expected JSON format.
+### 9. No input validation on update commands
 
-### L5. No `quill status` command
+`dashboard update --file`, `report update --file`, `env update --file` pass raw JSON to the API with no validation. Malformed payloads produce cryptic server errors.
 
-No single command to check: am I authenticated? what environment? what endpoint? Is the connection working? An agent must run 3+ commands to diagnose issues.
+**Fix:** Add Zod schemas for update payloads, or at minimum validate the JSON is a valid object.
 
-### L6. No `quill dashboard list --names-only`
+### 10. README lists phantom `--json` flag
 
-Listing dashboards returns full objects. No lightweight mode to just get names (the `dashnames` task exists in the SDK but isn't exposed).
+The global flags table in README still shows `--json` which was removed. An agent might try to pass it.
 
-### L7. No shell completion support
+**Fix:** Remove `--json` row from the global flags table in README.
 
-No `--completions` or `install-completions` command for bash/zsh.
+### 11. `template` command not wrapped in `withErrorHandling`
 
-### L8. No `--timeout` flag
+Only command not using the error wrapper. Unexpected errors produce unstructured stack traces instead of JSON.
 
-Global 30s timeout is hardcoded. No way to increase for slow operations.
+**Fix:** Wrap the action in `withErrorHandling`.
+
+**File:** `src/commands/template.ts` line 82
+
+### 12. `config set queryHeaders` is unusable
+
+`queryHeaders` is `z.record(z.string())` (an object) but `config set` stores a single string value. Running `quill config set queryHeaders '{"X-Custom":"value"}'` stores the literal string, not the parsed object. Fails Zod validation on next read.
+
+**Fix:** Parse JSON strings for object-type config keys, or remove `queryHeaders` from settable keys.
+
+**File:** `src/commands/config.ts` line 114
+
+### 13. `--env` accepts invalid values silently
+
+No Commander-level validation. `--env development` is accepted but falls through silently. (Currently masked by Issue 1's default stomping, but would surface once Issue 1 is fixed.)
+
+**Fix:** Add `.choices(['staging', 'prod'])` to the Commander option.
 
 ---
 
-## Recommendations: Making a Perfect Agent-Ready CLI
+## What's Been Completed (removed from previous version)
 
-### Priority 1: Fix Documentation (30 min)
+All of these were in the original 34-issue analysis and have been **fully fixed**:
 
-1. **Update README** to match actual command interfaces (C1-C4)
-2. **Update example JSON files** to use current field names (`query` not `baseSql`)
-3. **Add JSON schema hints** to every `--file` option description
-4. **Document non-interactive setup**: "For agents/CI, set `QUILL_API_TOKEN` env var. Do not use `quill login`."
+- C1-C4: README/code mismatches for ai pivot, tenant validate, promote, dashboard args
+- C5: config set numeric coercion
+- C6: non-TTY auto-confirm on delete
+- H1: Missing env vars (QUILL_CLIENT_ID, QUILL_QUERY_ENDPOINT, etc.)
+- H2: Undocumented --file JSON schemas
+- H5: promote --dry-run
+- H6: test-connection ok:true on failure
+- H7: auto-fix ok:true on failure
+- H8: Example JSON outdated
+- M1: --json no-op flag
+- M2: Dead code in formatter.ts
+- M3: Chalk ANSI in non-TTY stderr
+- M6: getMergedConfig token skips env var
+- M8: VT create column extraction silent failure
+- M9: Dashboard --name override silent
+- M12: Hardcoded version
+- L3: Promote --skip-warning
+- L4: --file-template command
+- L5: quill status command
+- L6: dashboard list --names-only
 
-### Priority 2: Agent Safety (1-2 hours)
+---
 
-5. **Fix `config set` numeric coercion** -- always store strings for string fields (C5)
-6. **Change non-TTY delete behavior** to fail without `--force` instead of auto-confirming (C6)
-7. **Return `ok: false` for actual failures** -- `test-connection` when not connected, `--auto-fix` when not resolved (H6, H7)
-8. **Emit warnings** for silent swallows (VT column extraction, `--name` override) (M8, M9)
+## Recommended Fix Order
 
-### Priority 3: Env Var Support (1 hour)
+### Must fix (blocks agent reliability)
 
-9. **Add env vars**: `QUILL_CLIENT_ID`, `QUILL_QUERY_ENDPOINT`, `QUILL_SERVER_URL`, `QUILL_ENV`
-10. **Read env vars in `getMergedConfig()`** before config files
-11. **Document all env vars** in README and `--help`
+1. **Issue 1**: Remove `--env` Commander default -- this breaks `QUILL_ENV`, `env switch`, and project config
 
-### Priority 4: Consistency & Clean-up (2-3 hours)
+### Should fix (improves agent experience)
 
-12. **Standardize identifiers** -- either accept both `<id>` and `<name>` on every command, or document clearly which is which
-13. **Add input validation** on all `--file` update commands
-14. **Remove dead code** (~100 lines in formatter.ts)
-15. **Remove `--json` flag** or implement actual text mode
-16. **Read version from package.json**
-17. **Add `--dry-run`** to promote commands
-18. **Add `quill status`** command for quick agent diagnostics
+2. **Issue 10**: Remove `--json` from README global flags table
+3. **Issue 2**: Tighten `fromUnknown()` 'fetch' match
+4. **Issue 5**: Add `env` to meta for schema/tenant/env commands
+5. **Issue 11**: Wrap `template` command in `withErrorHandling`
+6. **Issue 13**: Add `.choices()` validation to `--env`
+7. **Issue 6**: Rename init's `--env` to `--default-env`
 
-### Priority 5: Agent DX Enhancements (future)
+### Nice to have
 
-19. **Add `--file-template <command>`** to generate example JSON
-20. **Add `--output-fields`** to select specific response fields
-21. **Add `quill dashboard list --names-only`** (uses `dashnames` task)
-22. **Support `QUILL_*` env vars for all config** for zero-file container deployment
+8. **Issue 3**: Fix `successDeleted` name-as-id semantic
+9. **Issue 4**: Remove `as any` in config set
+10. **Issue 7**: Add non-TTY guard to `login`
+11. **Issue 8**: Add `--timeout` flag
+12. **Issue 9**: Add validation to update commands
+13. **Issue 12**: Fix `config set queryHeaders` JSON parsing
