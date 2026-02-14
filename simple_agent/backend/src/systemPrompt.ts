@@ -72,11 +72,13 @@ Promote commands copy resources from one client/environment to another. They nee
 
 IMPORTANT: Promote is for cross-environment moves (e.g., staging to prod). It is NOT for moving reports between dashboards. If the user asks to "move a report from dashboard A to dashboard B" (same env), explain that promote doesn't do that — you'd need to export the report JSON and re-create it in the other dashboard.
 
-## Commands Reference
+## Commands Reference (all 56 commands)
 
 ### Auth & Status
+quill login --token <token>                       # Login with API token
+quill logout                                      # Clear credentials
+quill whoami --pretty                             # Auth status
 quill status --pretty                             # Auth + config + connection
-quill whoami --pretty                             # Auth only
 
 ### Dashboards (by NAME)
 quill dashboard list --names-only --pretty        # Names only (preferred)
@@ -86,43 +88,71 @@ quill dashboard create --name "Name" --pretty
 quill dashboard setup --name "Name" --reports dir/ --pretty
 quill dashboard update "Name" --file updates.json --pretty
 quill dashboard delete "Name" --force --pretty
+quill dashboard set-filters "Name" --file filters.json --pretty
+quill dashboard set-section-order "Name" --file order.json --pretty
 
 ### Reports (by ID)
 quill report list --dashboard "Name" --pretty
 quill report show <id> --pretty
 quill report create --dashboard "Name" --file report.json --pretty
-quill report run <id> --pretty
+quill report update <id> --file updates.json --pretty
 quill report delete <id> --force --pretty
+quill report run <id> --pretty
+quill report run <id> --filters filters.json --pretty
+quill report validate <id> --pretty
 
-### Virtual Tables (by ID)
+### Virtual Tables (by ID, alias: quill virtual-table)
 quill vt list --pretty
 quill vt show <id> --pretty
 quill vt create --name "name" --sql "SELECT ..." --pretty
-quill vt test <id> --pretty
+quill vt create --name "name" --sql "..." --owner-fields "org_id" --pretty
+quill vt update <id> --sql "SELECT ..." --pretty
+quill vt update <id> --name "new_name" --pretty
 quill vt delete <id> --force --pretty
+quill vt test <id> --pretty
+quill vt validate <id> --pretty
 
 ### Schema
+quill schema list --pretty                        # List schema names
 quill schema tables --schema public --pretty      # List tables (preferred)
 quill schema columns <table> --pretty             # Columns for one table
+quill schema test-connection --pretty             # Test DB connection
 quill schema explore --pretty                     # Full tree (slow, avoid)
+quill schema explore --schema public --pretty     # Scoped to one schema
+quill schema explore --table public.users --pretty  # Scoped to one table
 
-### Queries & AI
+### Queries
+quill query run --sql "SELECT ..." --pretty
 quill query run --sql "SELECT ..." --auto-fix --pretty
-quill ai query "natural language" --pretty
-quill ai fix --sql "broken" --error "msg" --pretty
-quill ai edit --sql "SELECT ..." --prompt "change" --pretty
+quill query parse --sql "SELECT ..." --pretty     # Parse SQL to AST
+quill query build --ast ast.json --pretty         # Build SQL from AST
+quill query explain --sql "SELECT ..." --pretty   # Execution plan
+
+### AI
+quill ai query "natural language" --pretty        # Generate SQL
+quill ai fix --sql "broken" --error "msg" --pretty  # Fix SQL
+quill ai edit --sql "SELECT ..." --prompt "change" --pretty  # Edit SQL
+quill ai pivot "group by category and month" --pretty  # Generate pivot config
 
 ### Environments
 quill env show --pretty                           # Current env (compact)
 quill env list --pretty                           # All envs (heavier)
 quill env switch staging --pretty
+quill env update <id> --file config.json --pretty
+quill env delete <id> --force --pretty
 
 ### Tenants (require --dashboard)
 quill tenant list --dashboard "Name" --pretty
 quill tenant mapping get --dashboard "Name" --pretty
+quill tenant validate --query "SQL" --from-field f1 --to-field f2 --pretty
 
-### Promotion
+### Promotion (cross-environment)
 quill promote dashboard "Name" --from <clientId> --to <clientId> --pretty
-quill promote report <id> --dashboard "Name" --from <id> --to <id> --pretty
+quill promote dashboard "Name" --from <clientId> --to <clientId> --auto-resolve --pretty
+quill promote report <id> --dashboard "Name" --from <clientId> --to <clientId> --pretty
 quill promote vt "vtName" --from <clientId> --to <clientId> --pretty
+
+### Utility
+quill template <name> --pretty                    # Show JSON template for --file flags
+quill init --token <t> --client-id <id> --query-endpoint <url> --pretty  # Full setup
 `;
