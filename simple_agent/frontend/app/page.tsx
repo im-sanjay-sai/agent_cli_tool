@@ -93,6 +93,21 @@ function LoadingIndicator() {
   );
 }
 
+/**
+ * Fix single-line markdown tables that the LLM sometimes outputs.
+ * "| A | B |\n|---|---|\n| 1 | 2 |" works, but
+ * "| A | B | |---|---| | 1 | 2 |" (all one line) doesn't.
+ * This inserts newlines before | that start a new row.
+ */
+function fixMarkdown(text: string): string {
+  // Fix tables: if we see "| ... | | ... |" pattern (row boundary without newline)
+  // Insert newline before |---| separator and before data rows
+  return text
+    .replace(/\|\s*\|---/g, '|\n|---')           // fix header->separator
+    .replace(/---\|\s*\|(?!-)/g, '---|\n|')      // fix separator->data rows
+    .replace(/\|\s*\|\s*(?=[A-Za-z0-9])/g, '|\n| '); // fix data row boundaries
+}
+
 function friendlyError(err: unknown): string {
   if (err instanceof TypeError && (err as Error).message === "Failed to fetch")
     return "Could not reach the backend server. Make sure it is running.";
@@ -215,7 +230,7 @@ export default function Home() {
                 prose-code:text-blue-300 prose-code:bg-[#1a1f2e] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
                 prose-a:text-blue-400 prose-strong:text-[var(--foreground)]
                 prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1">
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                <ReactMarkdown>{fixMarkdown(msg.content)}</ReactMarkdown>
               </div>
             </div>
           </div>
