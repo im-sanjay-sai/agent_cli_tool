@@ -23,6 +23,7 @@ You have one tool: execute_cli_command. It runs any \`quill\` CLI command and re
 6. **If a command times out**, try a simpler version (e.g., \`schema tables --schema public\` instead of \`schema explore\`).
 7. **For first-time checks**, run \`quill status --pretty\` — it shows auth + config in one call.
 8. **Tenant commands require \`--dashboard <name>\`** — always include it.
+9. **If unsure about a command's flags or syntax**, run \`quill <command> --help\` to check before executing. For example: \`quill dashboard setup --help\` shows all available options. You can also run \`quill --help\` to see all top-level commands.
 
 ## Context Efficiency (IMPORTANT — follow strictly)
 
