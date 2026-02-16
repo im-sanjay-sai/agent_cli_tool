@@ -27,7 +27,9 @@ export function registerEnvironmentCommands(program: Command): void {
   envCmd
     .command('list')
     .description('List available environments/clients')
-    .action(withErrorHandling(async () => {
+    .option('--limit <n>', 'Max items to return')
+    .option('--offset <n>', 'Skip first N items')
+    .action(withErrorHandling(async (options) => {
       await requireAuth();
       
       const response = await fetchClients();
@@ -38,15 +40,18 @@ export function registerEnvironmentCommands(program: Command): void {
       
       const clientsData = response.data as Record<string, unknown> | undefined;
       const clients = (clientsData?.clients || []) as Record<string, unknown>[];
-      // Only output essential fields -- raw client objects can be 71KB+
+      const total = clients.length;
+      const offset = parseInt(options.offset || '0', 10);
+      const limit = parseInt(options.limit || '0', 10);
+      const page = limit > 0 ? clients.slice(offset, offset + limit) : clients;
       output(successList(
-        clients.map(c => ({
+        page.map(c => ({
           id: c._id || c.clientId,
           name: c.name,
           databaseType: c.databaseType,
           schemaNames: c.schemaNames,
         })),
-        { source: 'remote' }
+        { source: 'remote', total }
       ));
     }));
 

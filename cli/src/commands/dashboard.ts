@@ -30,6 +30,8 @@ export function registerDashboardCommands(program: Command): void {
     .command('list')
     .description('List all dashboards')
     .option('--names-only', 'Return only dashboard names (lightweight)')
+    .option('--limit <n>', 'Max items to return')
+    .option('--offset <n>', 'Skip first N items')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -41,24 +43,28 @@ export function registerDashboardCommands(program: Command): void {
       
       const data = response.data as Record<string, unknown> | undefined;
       const dashboards = (data?.dashboards as Record<string, unknown>[]) ?? [];
+      const total = dashboards.length;
+      const offset = parseInt(options.offset || '0', 10);
+      const limit = parseInt(options.limit || '0', 10);
+      const page = limit > 0 ? dashboards.slice(offset, offset + limit) : dashboards;
 
       if (options.namesOnly) {
         output(successList(
-          dashboards.map(d => d.name as string),
-          { source: 'remote', env }
+          page.map(d => d.name as string),
+          { source: 'remote', env, total }
         ));
         return;
       }
       
       output(successList(
-        dashboards.map(d => {
+        page.map(d => {
           const filterCount = (d.filters as unknown[])?.length ?? 0;
           return {
             name: d.name,
             filterCount,
           };
         }),
-        { source: 'remote', env }
+        { source: 'remote', env, total }
       ));
     }));
 

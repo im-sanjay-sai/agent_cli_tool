@@ -29,6 +29,8 @@ export function registerReportCommands(program: Command): void {
     .command('list')
     .description('List reports for a dashboard')
     .requiredOption('--dashboard <name>', 'Dashboard name')
+    .option('--limit <n>', 'Max items to return')
+    .option('--offset <n>', 'Skip first N items')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();
@@ -40,7 +42,6 @@ export function registerReportCommands(program: Command): void {
       }
       
       const data = response.data as Record<string, unknown> | undefined;
-      // sections is { sectionName: Report[] } -- an object, not an array
       const sections = (data?.sections ?? {}) as Record<string, Record<string, unknown>[]>;
       const reports: Record<string, unknown>[] = [];
       
@@ -57,7 +58,10 @@ export function registerReportCommands(program: Command): void {
         }
       }
       
-      output(successList(reports, { source: 'remote', env }));
+      const offset = parseInt(options.offset || '0', 10);
+      const limit = parseInt(options.limit || '0', 10);
+      const page = limit > 0 ? reports.slice(offset, offset + limit) : reports;
+      output(successList(page, { source: 'remote', env, total: reports.length }));
     }));
 
   // Show report

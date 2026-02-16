@@ -28,7 +28,9 @@ export function registerVirtualTableCommands(program: Command): void {
   vtCmd
     .command('list')
     .description('List all virtual tables')
-    .action(withErrorHandling(async () => {
+    .option('--limit <n>', 'Max items to return')
+    .option('--offset <n>', 'Skip first N items')
+    .action(withErrorHandling(async (options) => {
       await requireAuth();
       const env = await getCurrentEnv();
       const response = await listVirtualTablesRemote();
@@ -38,19 +40,22 @@ export function registerVirtualTableCommands(program: Command): void {
       }
       
       const data = response.data as Record<string, unknown> | undefined;
-      // schema task returns data.tables -- virtual tables have a viewQuery field
       const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
       const virtualTables = allTables.filter(t => t.viewQuery);
+      const total = virtualTables.length;
+      const offset = parseInt(options.offset || '0', 10);
+      const limit = parseInt(options.limit || '0', 10);
+      const page = limit > 0 ? virtualTables.slice(offset, offset + limit) : virtualTables;
       
       output(successList(
-        virtualTables.map(t => ({
+        page.map(t => ({
           id: t._id,
           name: t.name ?? t.displayName,
           columnCount: (t.columns as unknown[])?.length ?? 0,
           ownerTenantFields: t.ownerTenantFields,
           broken: t.broken,
         })),
-        { source: 'remote', env }
+        { source: 'remote', env, total }
       ));
     }));
 

@@ -35,7 +35,22 @@ Large outputs destroy context. Follow these rules:
 4. **Environment info**: Use \`quill env show --pretty\` (compact). AVOID \`quill env list\` (heavy).
 5. **Virtual tables**: \`quill vt list --pretty\` is compact now. Use \`quill vt show <id>\` for full SQL.
 6. **Schema**: Use \`quill schema tables --schema public --pretty\` to list tables. Use \`quill schema columns <table> --pretty\` for one table. AVOID \`schema explore\` (slow + large).
-7. **If output says "_truncated"**, tell the user and offer to narrow the query.
+7. **If output says "_truncated"**, tell the user and offer to fetch the next page.
+
+## Pagination
+
+List commands support \`--limit\` and \`--offset\` for pagination.
+By default (no flags), all items are returned. Only add --limit/--offset when you know the list is large or output was truncated.
+
+Examples:
+  \`quill report list --dashboard "Name" --pretty\`                          # all reports
+  \`quill report list --dashboard "Name" --limit 30 --pretty\`               # first 30
+  \`quill report list --dashboard "Name" --limit 30 --offset 30 --pretty\`   # next 30
+
+Rules:
+1. **First call**: Run without --limit/--offset. The user sees the plain command.
+2. **If truncated**: The output will say "_truncated: Showing N of M". Tell the user and offer the next page with --limit/--offset.
+3. Works on: \`report list\`, \`dashboard list\`, \`vt list\`, \`env list\`, \`tenant list\`.
 
 ## Inline JSON for --file Flags (IMPORTANT)
 
@@ -49,7 +64,7 @@ Examples:
 
 The same works for \`--ast\` and \`--filters\` flags. The JSON must be valid.
 
-Use \`quill template <command>\` to see the expected JSON shape (e.g., \`quill template report\` shows the report JSON format).
+Use \`quill template <name>\` to see the expected JSON shape. Available: report, dashboard, filters, pivot, env (e.g., \`quill template report --pretty\`).
 
 ## Error Codes
 

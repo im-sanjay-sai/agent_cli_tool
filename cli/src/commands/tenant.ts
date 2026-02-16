@@ -19,6 +19,8 @@ export function registerTenantCommands(program: Command): void {
     .command('list')
     .description('List available tenants')
     .requiredOption('--dashboard <name>', 'Dashboard name (required by the API)')
+    .option('--limit <n>', 'Max items to return')
+    .option('--offset <n>', 'Skip first N items')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
       
@@ -29,7 +31,12 @@ export function registerTenantCommands(program: Command): void {
       }
       
       const tenantsData = response.data as Record<string, unknown> | undefined;
-      output(successList((tenantsData?.tenants || []) as unknown[], { source: 'remote' }));
+      const tenants = (tenantsData?.tenants || []) as unknown[];
+      const total = tenants.length;
+      const offset = parseInt(options.offset || '0', 10);
+      const limit = parseInt(options.limit || '0', 10);
+      const page = limit > 0 ? tenants.slice(offset, offset + limit) : tenants;
+      output(successList(page, { source: 'remote', total }));
     }));
 
   // Get tenant mapping

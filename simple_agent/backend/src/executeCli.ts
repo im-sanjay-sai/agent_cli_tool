@@ -159,23 +159,39 @@ function cleanupTempFiles(paths: string[]): void {
 }
 
 /**
- * Truncate large CLI output to avoid bloating the LLM context.
- * Cap at ~4KB. If truncated, append a note so the LLM knows.
+ * Smart truncation: fit as many items as possible within 12KB.
+ * Small items (reports: ~120 bytes each) can fit ~100 items.
+ * Large items get fewer. This is adaptive, not a fixed count.
  */
-const MAX_OUTPUT_CHARS = 4096;
+const MAX_OUTPUT_CHARS = 12288; // 12KB
 
 function truncateOutput(output: string): string {
   if (output.length <= MAX_OUTPUT_CHARS) return output;
 
   try {
     const parsed = JSON.parse(output);
-    if (parsed.ok && parsed.data) {
-      if (Array.isArray(parsed.data.items) && parsed.data.items.length > 10) {
-        const total = parsed.data.items.length;
-        parsed.data.items = parsed.data.items.slice(0, 10);
-        parsed.data._truncated = `Showing 10 of ${total} items. Use more specific commands to narrow results.`;
-        return JSON.stringify(parsed);
+    if (parsed.ok && parsed.data && Array.isArray(parsed.data.items)) {
+      const allItems = parsed.data.items;
+      const total = parsed.data.total || allItems.length;
+
+      // Dynamically find how many items fit within the budget
+      let fitCount = allItems.length;
+      for (let n = allItems.length; n > 0; n--) {
+        parsed.data.items = allItems.slice(0, n);
+        parsed.data._truncated = `Showing ${n} of ${total} items. Use --limit/--offset to paginate.`;
+        if (JSON.stringify(parsed).length <= MAX_OUTPUT_CHARS) {
+          fitCount = n;
+          break;
+        }
       }
+
+      if (fitCount < allItems.length) {
+        parsed.data.items = allItems.slice(0, fitCount);
+        parsed.data._truncated = `Showing ${fitCount} of ${total} items. Use --limit/--offset to paginate.`;
+      } else {
+        delete parsed.data._truncated;
+      }
+      return JSON.stringify(parsed);
     }
   } catch {
     // Not valid JSON, fall through to raw truncation
@@ -183,7 +199,7 @@ function truncateOutput(output: string): string {
 
   return (
     output.slice(0, MAX_OUTPUT_CHARS) +
-    '\n... (output truncated at 4KB. Use more specific commands to get focused results.)'
+    '\n... (output truncated at 12KB. Use --limit/--offset to paginate.)'
   );
 }
 

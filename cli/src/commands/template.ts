@@ -74,6 +74,13 @@ const templates: Record<string, { description: string; example: Record<string, u
   },
 };
 
+// Short aliases so `quill template report` works as well as `quill template report-create`
+templates['report'] = templates['report-create'];
+templates['dashboard'] = templates['dashboard-create'];
+templates['filters'] = templates['dashboard-filters'];
+templates['pivot'] = templates['pivot-config'];
+templates['env'] = templates['env-update'];
+
 export function registerTemplateCommand(program: Command): void {
   program
     .command('template')

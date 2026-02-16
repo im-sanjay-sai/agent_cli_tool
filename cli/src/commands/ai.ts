@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import * as fs from 'fs/promises';
 import { requireAuth } from '../core/auth.js';
 import {
   aiGenerateFromSchema,
@@ -67,14 +66,15 @@ export function registerAiCommands(program: Command): void {
   aiCmd
     .command('pivot')
     .description('Generate pivot configuration using AI')
-    .requiredOption('--file <path>', 'JSON file with pivot config (pivotCountRequest, allowedRowFields, allowedColumnFields, allowedValueFields, tableSchema)')
-    .action(withErrorHandling(async (options) => {
+    .argument('<prompt>', 'Natural language description of the pivot (e.g., "group revenue by category and month")')
+    .option('--report <id>', 'Report ID to generate pivot for')
+    .action(withErrorHandling(async (prompt, options) => {
       await requireAuth();
       
-      const content = await fs.readFile(options.file, 'utf-8');
-      const pivotConfig = JSON.parse(content);
-      
-      const response = await aiPivot(pivotConfig);
+      const response = await aiPivot({
+        initialQuestion: prompt,
+        ...(options.report ? { reportId: options.report } : {}),
+      });
       
       if (response.error) {
         throw networkError(response.error);
@@ -82,7 +82,8 @@ export function registerAiCommands(program: Command): void {
       
       const pivotData = response.data as Record<string, unknown> | undefined;
       output(success({
-        pivotTables: pivotData?.pivotTables || pivotData?.data,
+        prompt,
+        pivotTables: pivotData?.pivotTables || pivotData?.data || pivotData,
       }, { source: 'remote' }));
     }));
 
