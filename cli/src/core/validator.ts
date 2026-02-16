@@ -264,6 +264,14 @@ export async function validateVirtualTable(
 ): Promise<ValidationResult> {
   const result: ValidationResult = { valid: true, errors: [], warnings: [] };
   
+  if (!vtData || typeof vtData !== 'object') {
+    return {
+      valid: false,
+      errors: [{ field: 'data', message: 'No virtual table data provided', code: 'REQUIRED_FIELD' }],
+      warnings: [],
+    };
+  }
+  
   // Schema validation
   const schemaResult = validateVirtualTableSchema(vtData);
   if (!schemaResult.valid) {
@@ -272,8 +280,8 @@ export async function validateVirtualTable(
   }
   result.warnings.push(...schemaResult.warnings);
   
-  // Validate SQL
-  const sql = vtData.sql as string | undefined;
+  // Validate SQL -- API returns 'viewQuery', storage uses 'sql'
+  const sql = (vtData.viewQuery ?? vtData.sql) as string | undefined;
   if (sql) {
     const sqlResult = validateSql(sql);
     if (!sqlResult.valid) {

@@ -140,8 +140,8 @@ export function registerEnvironmentCommands(program: Command): void {
   // Switch environment
   envCmd
     .command('switch')
-    .description('Switch current environment')
-    .argument('<env>', 'Environment name (staging or prod)')
+    .description('Switch between staging and prod (to change client, use `quill config set clientId <id>`)')
+    .argument('<env>', 'Environment: staging or prod')
     .action(withErrorHandling(async (env) => {
       if (env !== 'staging' && env !== 'prod') {
         throw invalidInput('Environment must be "staging" or "prod"');

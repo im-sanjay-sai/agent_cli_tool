@@ -107,6 +107,19 @@ For dashboard and VT promotion (cross-env only, --from must differ from --to):
 
 Get the current client ID from \`quill status --pretty\` (config.clientId field).
 
+### Moving a report to a different section
+Sections are managed at the dashboard level, not the report level. You cannot move a report by updating the report itself.
+Workflow:
+1. \`quill dashboard show "Name" --pretty\` — see current sections and report IDs
+2. Build a new sectionOrder JSON with the report ID in the desired section
+3. \`quill dashboard set-section-order "Name" --file '{"sectionOrder":[{"section":"TargetSection","reportOrder":["reportId1","reportId2"]}]}' --pretty\`
+
+### Switching to a different client/environment
+\`env switch\` only toggles staging/prod within the same client. To switch to a different client entirely:
+1. \`quill env list --pretty\` — find the target client ID
+2. \`quill config set clientId <targetClientId>\` — switch to it
+Do NOT try \`env switch "Client Name"\` — it only accepts "staging" or "prod".
+
 ### AI pivot (structured JSON required)
 AI pivot needs structured column metadata, NOT natural language. Workflow:
 1. \`quill schema columns <table> --pretty\` — get column names and types

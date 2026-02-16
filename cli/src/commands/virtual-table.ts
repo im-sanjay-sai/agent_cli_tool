@@ -74,6 +74,10 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError(response.error);
       }
       
+      if (!response.data) {
+        throw networkError('No data returned for virtual table');
+      }
+      
       output(success(response.data, { source: 'remote', env }));
     }));
 
@@ -232,7 +236,10 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      const vtData = response.data as Record<string, unknown>;
+      const vtData = response.data as Record<string, unknown> | undefined;
+      if (!vtData) {
+        throw networkError('No data returned for virtual table');
+      }
       const result = await validateVirtualTable(vtData);
       
       output(success({
