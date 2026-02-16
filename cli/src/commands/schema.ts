@@ -29,8 +29,23 @@ export function registerSchemaCommands(program: Command): void {
         throw networkError(response.error);
       }
       
+      // The API returns schemas in multiple possible formats:
+      // 1. data.schemas (array) -- direct format
+      // 2. queries.queryResults[0].rows with schema_name/SCHEMA_NAME -- DB query format
       const schemasData = response.data as Record<string, unknown> | undefined;
-      output(successList((schemasData?.schemas || []) as unknown[], { source: 'remote' }));
+      const queriesData = response.queries as Record<string, unknown> | undefined;
+      
+      let schemas: string[] = [];
+      
+      if (Array.isArray(schemasData?.schemas)) {
+        schemas = schemasData.schemas as string[];
+      } else if (queriesData?.queryResults) {
+        const queryResults = queriesData.queryResults as Record<string, unknown>[];
+        const rows = (queryResults?.[0]?.rows || []) as Record<string, unknown>[];
+        schemas = rows.map(r => (r.schema_name || r.SCHEMA_NAME || r.nspname) as string).filter(Boolean);
+      }
+      
+      output(successList(schemas, { source: 'remote' }));
     }));
 
   // List tables
@@ -91,7 +106,10 @@ export function registerSchemaCommands(program: Command): void {
     .action(withErrorHandling(async () => {
       await requireAuth();
       
-      const response = await testConnection();
+      const response = await testConnection(
+        process.env.QUILL_DATABASE_CONNECTION_STRING,
+        process.env.QUILL_DATABASE_TYPE
+      );
       
       const connData = response.data as Record<string, unknown> | undefined;
       const connected = connData?.success === true;

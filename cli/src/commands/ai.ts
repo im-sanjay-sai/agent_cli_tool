@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import * as fs from 'fs/promises';
 import { requireAuth } from '../core/auth.js';
 import {
   aiGenerateFromSchema,
@@ -62,19 +63,19 @@ export function registerAiCommands(program: Command): void {
       }, { source: 'remote' }));
     }));
 
-  // Generate pivot configuration
+  // Generate pivot configuration using AI
+  // API expects structured data: { pivotCountRequest, allowedRowFields[], allowedColumnFields[], allowedValueFields[], tableSchema{} }
   aiCmd
     .command('pivot')
-    .description('Generate pivot configuration using AI')
-    .argument('<prompt>', 'Natural language description of the pivot (e.g., "group revenue by category and month")')
-    .option('--report <id>', 'Report ID to generate pivot for')
-    .action(withErrorHandling(async (prompt, options) => {
+    .description('Generate pivot configuration using AI (requires structured JSON with column metadata)')
+    .requiredOption('--file <path>', 'JSON file with: { pivotCountRequest, allowedRowFields, allowedColumnFields, allowedValueFields, tableSchema }')
+    .action(withErrorHandling(async (options) => {
       await requireAuth();
       
-      const response = await aiPivot({
-        initialQuestion: prompt,
-        ...(options.report ? { reportId: options.report } : {}),
-      });
+      const content = await fs.readFile(options.file, 'utf-8');
+      const pivotConfig = JSON.parse(content);
+      
+      const response = await aiPivot(pivotConfig);
       
       if (response.error) {
         throw networkError(response.error);
@@ -82,7 +83,6 @@ export function registerAiCommands(program: Command): void {
       
       const pivotData = response.data as Record<string, unknown> | undefined;
       output(success({
-        prompt,
         pivotTables: pivotData?.pivotTables || pivotData?.data || pivotData,
       }, { source: 'remote' }));
     }));

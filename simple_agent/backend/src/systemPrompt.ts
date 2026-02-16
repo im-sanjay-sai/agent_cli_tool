@@ -94,13 +94,24 @@ Use \`quill dashboard setup --name "Name" --reports ./reports/ --pretty\` for on
 1. \`quill ai query "natural language" --pretty\` — generate SQL
 2. \`quill query run --sql "..." --auto-fix --pretty\` — execute with auto-fix
 
-### Promoting (between environments/clients)
-Promote commands copy resources from one client/environment to another. They need --from and --to client IDs.
-1. \`quill promote dashboard "Name" --from <sourceClientId> --to <targetClientId> --pretty\`
-2. \`quill promote report <id> --dashboard "Name" --from <sourceClientId> --to <targetClientId> --pretty\`
-3. \`quill promote vt "vtName" --from <sourceClientId> --to <targetClientId> --pretty\`
+### Promoting / copying reports
+\`promote report\` can do TWO things depending on --from/--to:
+- **Cross-dashboard copy** (same env): Use the SAME client ID for --from and --to. The report is copied to the target dashboard.
+  \`quill promote report <id> --to-dashboard "target-dash" --from <clientId> --to <clientId> --pretty\`
+- **Cross-environment promotion**: Use DIFFERENT client IDs for --from and --to.
+  \`quill promote report <id> --to-dashboard "dash" --from <stagingClientId> --to <prodClientId> --pretty\`
 
-IMPORTANT: Promote is for cross-environment moves (e.g., staging to prod). It is NOT for moving reports between dashboards. If the user asks to "move a report from dashboard A to dashboard B" (same env), explain that promote doesn't do that — you'd need to export the report JSON and re-create it in the other dashboard.
+For dashboard and VT promotion (cross-env only, --from must differ from --to):
+1. \`quill promote dashboard "Name" --from <sourceClientId> --to <targetClientId> --pretty\`
+2. \`quill promote vt "vtName" --from <sourceClientId> --to <targetClientId> --pretty\`
+
+Get the current client ID from \`quill status --pretty\` (config.clientId field).
+
+### AI pivot (structured JSON required)
+AI pivot needs structured column metadata, NOT natural language. Workflow:
+1. \`quill schema columns <table> --pretty\` — get column names and types
+2. Build the pivot JSON from those columns
+3. \`quill ai pivot --file '{"pivotCountRequest":5,"allowedRowFields":["col1"],"allowedColumnFields":["col2"],"allowedValueFields":["col3"],"tableSchema":{"col1":"varchar","col2":"date","col3":"numeric"}}' --pretty\`
 
 ## Commands Reference (all 56 commands)
 
@@ -162,7 +173,7 @@ quill query explain --sql "SELECT ..." --pretty   # Execution plan
 quill ai query "natural language" --pretty        # Generate SQL
 quill ai fix --sql "broken" --error "msg" --pretty  # Fix SQL
 quill ai edit --sql "SELECT ..." --prompt "change" --pretty  # Edit SQL
-quill ai pivot "group by category and month" --pretty  # Generate pivot config
+quill ai pivot --file '{"pivotCountRequest":5,...}' --pretty  # Structured JSON required
 
 ### Environments
 quill env show --pretty                           # Current env (compact)
@@ -179,7 +190,7 @@ quill tenant validate --query "SQL" --from-field f1 --to-field f2 --pretty
 ### Promotion (cross-environment)
 quill promote dashboard "Name" --from <clientId> --to <clientId> --pretty
 quill promote dashboard "Name" --from <clientId> --to <clientId> --auto-resolve --pretty
-quill promote report <id> --dashboard "Name" --from <clientId> --to <clientId> --pretty
+quill promote report <id> --to-dashboard "target" --from <clientId> --to <clientId> --pretty  # same IDs = cross-dashboard copy
 quill promote vt "vtName" --from <clientId> --to <clientId> --pretty
 
 ### Utility

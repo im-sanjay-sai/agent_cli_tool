@@ -29,7 +29,10 @@ export function registerStatusCommand(program: Command): void {
       if (!options.skipConnectionTest && authState.authenticated) {
         try {
           verbose('Testing database connection...');
-          const connResponse = await testConnection();
+          const connResponse = await testConnection(
+            process.env.QUILL_DATABASE_CONNECTION_STRING,
+            process.env.QUILL_DATABASE_TYPE
+          );
           const connData = connResponse.data as Record<string, unknown> | undefined;
           // Check multiple possible success indicators from the API
           const hasError = connResponse.error || connResponse.status === 'error';

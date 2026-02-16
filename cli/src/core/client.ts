@@ -288,7 +288,12 @@ export async function testConnection(connectionString?: string, databaseType?: s
 }
 
 export async function fetchSchemaNames(): Promise<QuillResponse> {
-  return quillFetch({ task: 'get-schema-names', metadata: {} });
+  return quillFetch({
+    task: 'get-schema-names',
+    metadata: {
+      databaseType: process.env.QUILL_DATABASE_TYPE || 'postgres',
+    },
+  });
 }
 
 export async function setSchemas(schemaNames: string[]): Promise<QuillResponse> {
@@ -386,7 +391,8 @@ export async function promoteDashboard(
   });
 }
 
-// Frontend uses itemId (not reportId), dashboardName, fromClientId, toClientId
+// Frontend uses itemId (not reportId), dashboardName (= TARGET dashboard), fromClientId, toClientId
+// Same fromClientId/toClientId = copy between dashboards in same env
 export async function promoteReport(
   itemId: string,
   dashboardName: string,
