@@ -37,6 +37,20 @@ Large outputs destroy context. Follow these rules:
 6. **Schema**: Use \`quill schema tables --schema public --pretty\` to list tables. Use \`quill schema columns <table> --pretty\` for one table. AVOID \`schema explore\` (slow + large).
 7. **If output says "_truncated"**, tell the user and offer to narrow the query.
 
+## Inline JSON for --file Flags (IMPORTANT)
+
+Many commands need \`--file <path>\` for JSON input. Since you cannot create files, **pass the JSON inline** — the backend writes it to a temp file automatically.
+
+Examples:
+- \`quill report create --dashboard "Name" --file '{"name":"My Report","baseSql":"SELECT * FROM transactions","chartType":"line"}' --pretty\`
+- \`quill report update <id> --file '{"chartType":"bar"}' --pretty\`
+- \`quill dashboard set-filters "Name" --file '{"globalFilters":[{"id":"f1","type":"date","field":"created_at"}]}' --pretty\`
+- \`quill dashboard update "Name" --file '{"tenantKeys":["customer_id"]}' --pretty\`
+
+The same works for \`--ast\` and \`--filters\` flags. The JSON must be valid.
+
+Use \`quill template <command>\` to see the expected JSON shape (e.g., \`quill template report\` shows the report JSON format).
+
 ## Error Codes
 
 | Code | Meaning | Action |
@@ -87,19 +101,19 @@ quill dashboard list --pretty                     # Names + filter counts
 quill dashboard show "Name" --pretty              # Summary (reports, sections, filters)
 quill dashboard create --name "Name" --pretty
 quill dashboard setup --name "Name" --reports dir/ --pretty
-quill dashboard update "Name" --file updates.json --pretty
+quill dashboard update "Name" --file '{"tenantKeys":["customer_id"]}' --pretty
 quill dashboard delete "Name" --force --pretty
-quill dashboard set-filters "Name" --file filters.json --pretty
-quill dashboard set-section-order "Name" --file order.json --pretty
+quill dashboard set-filters "Name" --file '{"globalFilters":[...]}' --pretty
+quill dashboard set-section-order "Name" --file '{"sectionOrder":[...]}' --pretty
 
 ### Reports (by ID)
 quill report list --dashboard "Name" --pretty
 quill report show <id> --pretty
-quill report create --dashboard "Name" --file report.json --pretty
-quill report update <id> --file updates.json --pretty
+quill report create --dashboard "Name" --file '{"name":"Report","baseSql":"SELECT...","chartType":"line"}' --pretty
+quill report update <id> --file '{"chartType":"bar"}' --pretty
 quill report delete <id> --force --pretty
 quill report run <id> --pretty
-quill report run <id> --filters filters.json --pretty
+quill report run <id> --filters '{"filters":[...]}' --pretty
 quill report validate <id> --pretty
 
 ### Virtual Tables (by ID, alias: quill virtual-table)
@@ -139,7 +153,7 @@ quill ai pivot "group by category and month" --pretty  # Generate pivot config
 quill env show --pretty                           # Current env (compact)
 quill env list --pretty                           # All envs (heavier)
 quill env switch staging --pretty
-quill env update <id> --file config.json --pretty
+quill env update <id> --file '{"name":"...","schemaNames":["public"]}' --pretty
 quill env delete <id> --force --pretty
 
 ### Tenants (require --dashboard)

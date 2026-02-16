@@ -1,17 +1,24 @@
 import { execFile } from 'child_process';
-import { resolve } from 'path';
+import { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } from 'fs';
+import { resolve, join } from 'path';
+import { tmpdir } from 'os';
 
 const TIMEOUT_MS = 120_000; // 2 min — the proxy chain (CLI → /api/quill → DB) can be slow
 
 // Run CLI from the backend root so it finds .quill/config.json
 const BACKEND_ROOT = resolve(__dirname, '..');
 
+// Flags that accept a file path -- if the next arg is inline JSON, write to temp file
+const FILE_FLAGS = ['--file', '--ast', '--filters'];
+
 /**
  * Safely execute a Quill CLI command.
  *
- * Uses execFile (not exec/execSync) to:
- *  - Avoid shell injection (no shell is spawned)
- *  - Not block the Node.js event loop
+ * Features:
+ *  - Uses execFile (no shell) to avoid injection
+ *  - Async to not block the event loop
+ *  - Auto-writes inline JSON to temp files for --file/--ast/--filters flags
+ *  - Cleans up temp files after execution
  */
 export async function executeCli(args: { command: string }): Promise<string> {
   const { command } = args;
@@ -33,7 +40,10 @@ export async function executeCli(args: { command: string }): Promise<string> {
   const binary = parts[0]; // "quill"
   const cliArgs = parts.slice(1);
 
-  return new Promise((resolve) => {
+  // Write inline JSON to temp files for --file, --ast, --filters flags
+  const tempFiles = materializeInlineJson(cliArgs);
+
+  return new Promise((promiseResolve) => {
     execFile(
       binary,
       cliArgs,
@@ -44,27 +54,26 @@ export async function executeCli(args: { command: string }): Promise<string> {
         env: {
           ...process.env,
           CI: 'true', // Force non-interactive mode
-          // The CLI uses QUILL_API_TOKEN for auth. Auto-map from QUILL_PRIVATE_KEY
-          // if QUILL_API_TOKEN isn't explicitly set.
           QUILL_API_TOKEN:
             process.env.QUILL_API_TOKEN || process.env.QUILL_PRIVATE_KEY || '',
         },
         maxBuffer: 5 * 1024 * 1024, // 5MB buffer for large schema outputs
       },
       (error, stdout, stderr) => {
+        // Always clean up temp files
+        cleanupTempFiles(tempFiles);
+
         if (error) {
-          // If there's stdout, the CLI likely returned a structured JSON error
           const out = stdout?.trim();
           if (out) {
-            resolve(out);
+            promiseResolve(truncateOutput(out));
             return;
           }
 
           const errMsg = stderr?.trim() || error.message || 'Command failed';
 
-          // Distinguish timeout from other errors
           if (error.killed) {
-            resolve(
+            promiseResolve(
               JSON.stringify({
                 ok: false,
                 error: {
@@ -76,7 +85,7 @@ export async function executeCli(args: { command: string }): Promise<string> {
             return;
           }
 
-          resolve(
+          promiseResolve(
             JSON.stringify({
               ok: false,
               error: {
@@ -91,10 +100,62 @@ export async function executeCli(args: { command: string }): Promise<string> {
         const result =
           stdout?.trim() ||
           '{"ok": true, "data": {"message": "Command executed successfully (no output)"}}';
-        resolve(truncateOutput(result));
+        promiseResolve(truncateOutput(result));
       }
     );
   });
+}
+
+/**
+ * Scan CLI args for --file, --ast, --filters flags.
+ * If the next arg looks like inline JSON (starts with { or [),
+ * write it to a temp file and replace the arg with the file path.
+ *
+ * This lets the LLM pass JSON inline:
+ *   quill report create --dashboard "Name" --file '{"name":"report","baseSql":"SELECT..."}'
+ * and the backend transparently writes it to /tmp/quill-agent-xxx/data.json
+ */
+function materializeInlineJson(cliArgs: string[]): string[] {
+  const tempFiles: string[] = [];
+
+  for (let i = 0; i < cliArgs.length; i++) {
+    if (FILE_FLAGS.includes(cliArgs[i]) && i + 1 < cliArgs.length) {
+      const val = cliArgs[i + 1];
+      if (val.startsWith('{') || val.startsWith('[')) {
+        try {
+          // Validate it's actual JSON before writing
+          JSON.parse(val);
+          const tmpDir = mkdtempSync(join(tmpdir(), 'quill-agent-'));
+          const tmpPath = join(tmpDir, 'data.json');
+          writeFileSync(tmpPath, val, 'utf-8');
+          tempFiles.push(tmpPath, tmpDir);
+          cliArgs[i + 1] = tmpPath;
+        } catch {
+          // Not valid JSON -- leave as-is, CLI will handle the error
+        }
+      }
+    }
+  }
+
+  return tempFiles;
+}
+
+/**
+ * Clean up temp files and directories created by materializeInlineJson.
+ */
+function cleanupTempFiles(paths: string[]): void {
+  // Delete in reverse order (files first, then dirs)
+  for (let i = paths.length - 1; i >= 0; i--) {
+    try {
+      if (paths[i].endsWith('.json')) {
+        unlinkSync(paths[i]);
+      } else {
+        rmdirSync(paths[i]);
+      }
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
 }
 
 /**
@@ -106,11 +167,9 @@ const MAX_OUTPUT_CHARS = 4096;
 function truncateOutput(output: string): string {
   if (output.length <= MAX_OUTPUT_CHARS) return output;
 
-  // Try to preserve valid JSON structure by truncating the data
   try {
     const parsed = JSON.parse(output);
     if (parsed.ok && parsed.data) {
-      // If it's a list, truncate the items array
       if (Array.isArray(parsed.data.items) && parsed.data.items.length > 10) {
         const total = parsed.data.items.length;
         parsed.data.items = parsed.data.items.slice(0, 10);
