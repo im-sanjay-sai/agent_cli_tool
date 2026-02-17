@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import { InView } from "@/components/motion-primitives/in-view";
 import { TextEffect } from "@/components/motion-primitives/text-effect";
 import { TextShimmer } from "@/components/motion-primitives/text-shimmer";
@@ -10,7 +12,7 @@ import {
   DisclosureTrigger,
   DisclosureContent,
 } from "@/components/motion-primitives/disclosure";
-import { MessageSquare, Plus, Terminal, ChevronDown, PanelLeftClose, PanelLeft, Send } from "lucide-react";
+import { MessageSquare, Plus, Terminal, ChevronDown, PanelLeftClose, PanelLeft, Send, Copy, Check } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -122,12 +124,48 @@ function LoadingIndicator() {
   );
 }
 
-function fixMarkdown(text: string): string {
-  return text
-    .replace(/\|\s*\|---/g, "|\n|---")
-    .replace(/---\|\s*\|(?!-)/g, "---|\n|")
-    .replace(/\|\s*\|\s*(?=[A-Za-z0-9])/g, "|\n| ");
+function CodeBlock({ children, className, ...props }: React.ComponentPropsWithoutRef<"code"> & { children?: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const isInline = !className && typeof children === "string" && !children.includes("\n");
+
+  if (isInline) {
+    return <code className={className} {...props}>{children}</code>;
+  }
+
+  const text = String(children).replace(/\n$/, "");
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="relative group">
+      <button
+        onClick={handleCopy}
+        className="absolute top-2 right-2 p-1.5 rounded-md bg-[var(--surface-hover)] opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted)] hover:text-[var(--foreground)]"
+        aria-label="Copy code"
+      >
+        {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+      <code className={className} {...props}>{children}</code>
+    </div>
+  );
 }
+
+const markdownComponents = {
+  code: CodeBlock,
+};
+
+const MarkdownContent = React.memo(function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
+      {content}
+    </ReactMarkdown>
+  );
+});
 
 function friendlyError(err: unknown): string {
   if (err instanceof TypeError && (err as Error).message === "Failed to fetch")
@@ -136,6 +174,32 @@ function friendlyError(err: unknown): string {
     return "Request was cancelled.";
   if (err instanceof Error) return err.message;
   return "Something went wrong. Please try again.";
+}
+
+// ---------- SSE Parser ----------
+
+interface SSEEvent {
+  event: string;
+  data: string;
+}
+
+function parseSSEBlocks(raw: string): { events: SSEEvent[]; remainder: string } {
+  const events: SSEEvent[] = [];
+  const parts = raw.split("\n\n");
+  const remainder = parts.pop() || "";
+  for (const block of parts) {
+    if (!block.trim()) continue;
+    let event = "message";
+    const dataLines: string[] = [];
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event: ")) event = line.slice(7);
+      else if (line.startsWith("data: ")) dataLines.push(line.slice(6));
+    }
+    if (dataLines.length > 0) {
+      events.push({ event, data: dataLines.join("\n") });
+    }
+  }
+  return { events, remainder };
 }
 
 const SUGGESTIONS = [
@@ -275,8 +339,8 @@ export default function Home() {
     abortRef.current = abort;
 
     const userMsg: Message = { role: "user", content: trimmed };
-    const updated = [...messages, userMsg];
-    setMessages(updated);
+    const baseMessages = [...messages, userMsg];
+    setMessages(baseMessages);
     setInput("");
     setIsLoading(true);
 
@@ -287,7 +351,7 @@ export default function Home() {
       const newConv: Conversation = {
         id: convId,
         title: trimmed.slice(0, 40),
-        messages: updated,
+        messages: baseMessages,
         updatedAt: Date.now(),
       };
       const newConvs = [newConv, ...conversations];
@@ -296,22 +360,69 @@ export default function Home() {
       setActiveId(convId);
     }
 
+    // Mutable accumulator for streamed messages (avoids stale closures)
+    const newMessages: Message[] = [];
+    let hasStreamingMsg = false;
+
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated }),
+        body: JSON.stringify({ messages: baseMessages }),
         signal: abort.signal,
       });
+
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err.error || `HTTP ${res.status}`);
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        throw new Error(`HTTP ${res.status}`);
       }
-      const data = await res.json();
-      setMessages([...updated, ...data.messages]);
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const { events, remainder } = parseSSEBlocks(buffer);
+        buffer = remainder;
+
+        for (const sse of events) {
+          if (sse.event === "message") {
+            const msg = JSON.parse(sse.data) as Message;
+            if (msg.role === "assistant" && msg.content && hasStreamingMsg) {
+              newMessages[newMessages.length - 1] = msg;
+              hasStreamingMsg = false;
+            } else {
+              newMessages.push(msg);
+            }
+            setMessages([...baseMessages, ...newMessages]);
+          } else if (sse.event === "content_delta") {
+            const { snapshot } = JSON.parse(sse.data) as { delta: string; snapshot: string };
+            if (hasStreamingMsg) {
+              newMessages[newMessages.length - 1] = { role: "assistant", content: snapshot };
+            } else {
+              newMessages.push({ role: "assistant", content: snapshot });
+              hasStreamingMsg = true;
+            }
+            setMessages([...baseMessages, ...newMessages]);
+          } else if (sse.event === "error") {
+            const { message: errMsg } = JSON.parse(sse.data);
+            newMessages.push({ role: "assistant", content: `**Error:** ${errMsg}` });
+            setMessages([...baseMessages, ...newMessages]);
+          }
+        }
+      }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setMessages([...updated, { role: "assistant", content: `**Error:** ${friendlyError(err)}` }]);
+      newMessages.push({ role: "assistant", content: `**Error:** ${friendlyError(err)}` });
+      setMessages([...baseMessages, ...newMessages]);
     } finally {
       setIsLoading(false);
     }
@@ -367,7 +478,7 @@ export default function Home() {
                   prose-pre:my-2 prose-pre:bg-[#0d1117] prose-pre:text-gray-300 prose-pre:text-xs
                   prose-code:text-blue-300 prose-code:bg-[#1a1f2e] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
                   prose-a:text-blue-400 prose-strong:text-[var(--foreground)]">
-                  <ReactMarkdown>{fixMarkdown(msg.content)}</ReactMarkdown>
+                  <MarkdownContent content={msg.content} />
                 </div>
               </div>
             </div>

@@ -23,20 +23,45 @@ export interface ChatResponse {
   finalContent: string;
 }
 
-export async function runAgent(
-  userMessages: ChatMessage[]
-): Promise<ChatResponse> {
-  const collectedMessages: ChatMessage[] = [];
+// Shared tool definition used by both streaming and non-streaming runners
+const toolDefinition = {
+  type: 'function' as const,
+  function: {
+    function: executeCli,
+    parse: JSON.parse,
+    name: 'execute_cli_command',
+    description:
+      'Execute a Quill CLI command. The command must start with "quill". Returns JSON output from the CLI.',
+    parameters: {
+      type: 'object' as const,
+      properties: {
+        command: {
+          type: 'string',
+          description:
+            'The full quill CLI command to execute, e.g. "quill dashboard list --pretty"',
+        },
+      },
+      required: ['command'],
+    },
+  },
+};
 
-  // Build messages array, preserving content:null for assistant tool-call messages
-  const formattedMessages = userMessages.map((m) => ({
+function formatMessages(userMessages: ChatMessage[]) {
+  return userMessages.map((m) => ({
     role: m.role as any,
-    // Preserve null content for assistant messages with tool_calls (OpenAI API requires it)
     content: m.role === 'assistant' && m.tool_calls?.length ? null : (m.content ?? ''),
     ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
     ...(m.name ? { name: m.name } : {}),
     ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
   }));
+}
+
+export async function runAgent(
+  userMessages: ChatMessage[]
+): Promise<ChatResponse> {
+  const collectedMessages: ChatMessage[] = [];
+
+  const formattedMessages = formatMessages(userMessages);
 
   const runner = client.chat.completions
     .runTools({
@@ -45,29 +70,7 @@ export async function runAgent(
         { role: 'developer', content: SYSTEM_PROMPT },
         ...formattedMessages,
       ],
-      tools: [
-        {
-          type: 'function' as const,
-          function: {
-            function: executeCli,
-            parse: JSON.parse,
-            name: 'execute_cli_command',
-            description:
-              'Execute a Quill CLI command. The command must start with "quill". Returns JSON output from the CLI.',
-            parameters: {
-              type: 'object' as const,
-              properties: {
-                command: {
-                  type: 'string',
-                  description:
-                    'The full quill CLI command to execute, e.g. "quill dashboard list --pretty"',
-                },
-              },
-              required: ['command'],
-            },
-          },
-        },
-      ],
+      tools: [toolDefinition],
     })
     .on('message', (message: any) => {
       collectedMessages.push(message);
@@ -82,4 +85,45 @@ export async function runAgent(
     messages: collectedMessages,
     finalContent,
   };
+}
+
+export type SSEEmitter = (event: string, data: any) => void;
+
+export async function runAgentStreaming(
+  userMessages: ChatMessage[],
+  emit: SSEEmitter,
+  signal?: AbortSignal,
+): Promise<void> {
+  const formattedMessages = formatMessages(userMessages);
+
+  const runner = client.chat.completions
+    .runTools({
+      model: MODEL,
+      stream: true,
+      messages: [
+        { role: 'developer', content: SYSTEM_PROMPT },
+        ...formattedMessages,
+      ],
+      tools: [toolDefinition],
+    })
+    .on('message', (message: any) => {
+      emit('message', message);
+    })
+    .on('content', (_delta: string, snapshot: string) => {
+      emit('content_delta', { delta: _delta, snapshot });
+    })
+    .on('error', (err: Error) => {
+      console.error('[agent] Runner error:', err.message);
+      emit('error', { message: err.message });
+    });
+
+  // Abort the runner if the client disconnects
+  if (signal) {
+    signal.addEventListener('abort', () => {
+      runner.abort();
+    }, { once: true });
+  }
+
+  await runner.finalContent();
+  emit('done', {});
 }

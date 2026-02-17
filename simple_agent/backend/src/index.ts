@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { runAgent, ChatRequest } from './agent';
+import { runAgentStreaming, ChatRequest } from './agent';
 import { quillProxyHandler } from './quillProxy';
 
 const app = express();
@@ -40,50 +40,56 @@ app.get('/health', (_req, res) => {
 // Quill Server SDK proxy (the CLI sends requests here)
 app.post('/api/quill', quillProxyHandler);
 
-// Chat endpoint
+// Chat endpoint (SSE streaming)
 app.post('/api/chat', async (req, res) => {
-  try {
-    const { messages } = req.body as ChatRequest;
+  const { messages } = req.body as ChatRequest;
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      res.status(400).json({
-        error: 'messages array is required and must not be empty',
-      });
-      return;
-    }
-
-    // Validate message structure minimally
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage.role || !lastMessage.content) {
-      res.status(400).json({
-        error: 'Last message must have role and content',
-      });
-      return;
-    }
-
-    console.log(`[chat] Received ${messages.length} messages`);
-
-    const result = await runAgent(messages);
-
-    console.log(
-      `[chat] Agent responded with ${result.messages.length} new messages`
-    );
-
-    res.json({
-      messages: result.messages,
-      finalContent: result.finalContent,
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({
+      error: 'messages array is required and must not be empty',
     });
+    return;
+  }
+
+  const lastMessage = messages[messages.length - 1];
+  if (!lastMessage.role || !lastMessage.content) {
+    res.status(400).json({
+      error: 'Last message must have role and content',
+    });
+    return;
+  }
+
+  console.log(`[chat] Received ${messages.length} messages (streaming)`);
+
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+
+  try {
+    await runAgentStreaming(
+      messages,
+      (event, data) => {
+        if (!res.destroyed) {
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        }
+      },
+    );
   } catch (err: any) {
     console.error('[chat] Error:', err.message);
-
-    // Surface useful OpenAI errors to the client
-    const status = err.status || 500;
-    const message =
-      err.message?.includes('API key')
-        ? 'Invalid or missing OpenAI API key on the server.'
-        : err.message || 'Internal server error';
-
-    res.status(status).json({ error: message });
+    if (!res.destroyed) {
+      const message =
+        err.message?.includes('API key')
+          ? 'Invalid or missing OpenAI API key on the server.'
+          : err.message || 'Internal server error';
+      res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
+    }
+  } finally {
+    if (!res.destroyed) {
+      res.end();
+    }
   }
 });
 
