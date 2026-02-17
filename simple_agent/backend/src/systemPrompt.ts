@@ -93,8 +93,7 @@ Before creating a report, check the dashboard for tenantKeys:
 3. If report create fails with "Owner tenant not found", explain to the user that the dashboard has tenant keys and they need to configure tenants in the Quill admin portal, or use a virtual table in their SQL.
 
 ### Schema exploration
-Note: \`quill schema tables --schema public\` may fail on some setups. Use alternatives:
-1. \`quill schema explore --table public.transactions --pretty\` — inspect a specific table
+1. \`quill schema tables --schema public --pretty\` — list raw database tables in a schema
 2. \`quill schema columns <table> --pretty\` — get columns for one table
 3. \`quill vt list --pretty\` — list virtual tables (preferred for report SQL)
 

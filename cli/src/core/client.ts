@@ -295,8 +295,10 @@ export async function fetchSchema(): Promise<QuillResponse> {
   });
 }
 
+// Server expects schemaNames (array), not schema (string)
+// Response is in metadata.tables, not data.tables
 export async function fetchTablesBySchema(schema: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'tables-by-schema', metadata: { schema } });
+  return quillFetch({ task: 'tables-by-schema', metadata: { schemaNames: [schema] } });
 }
 
 export async function fetchTableInfo(schema: string, table: string): Promise<QuillResponse> {
