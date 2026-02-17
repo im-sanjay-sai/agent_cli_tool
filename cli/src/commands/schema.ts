@@ -67,9 +67,23 @@ export function registerSchemaCommands(program: Command): void {
         throw networkError(response.error);
       }
       
+      // The backend may return tables in multiple formats:
+      // 1. data.tables (direct) 2. queries.queryResults[0].rows (DB query) 3. data.schema
       const tablesData = response.data as Record<string, unknown> | undefined;
-      const tables = tablesData?.tables || tablesData?.schema || [];
-      output(successList(Array.isArray(tables) ? tables as unknown[] : Object.keys(tables as object), { source: 'remote' }));
+      const queriesData = response.queries as Record<string, unknown> | undefined;
+      
+      let tables: unknown[] = [];
+      if (Array.isArray(tablesData?.tables)) {
+        tables = tablesData.tables as unknown[];
+      } else if (queriesData?.queryResults) {
+        const qr = queriesData.queryResults as Record<string, unknown>[];
+        tables = (qr?.[0]?.rows || []) as unknown[];
+      } else if (tablesData?.schema) {
+        const schema = tablesData.schema;
+        tables = Array.isArray(schema) ? schema as unknown[] : Object.keys(schema as object);
+      }
+      
+      output(successList(tables, { source: 'remote' }));
     }));
 
   // Show table columns
@@ -165,8 +179,17 @@ export function registerSchemaCommands(program: Command): void {
         throw networkError(schemasResponse.error);
       }
 
+      // Parse schemas from multiple response formats (same as schema list)
       const schemasData = schemasResponse.data as Record<string, unknown> | undefined;
-      let schemaNames = (schemasData?.schemas || []) as string[];
+      const schemasQueries = schemasResponse.queries as Record<string, unknown> | undefined;
+      let schemaNames: string[] = [];
+      if (Array.isArray(schemasData?.schemas)) {
+        schemaNames = schemasData.schemas as string[];
+      } else if (schemasQueries?.queryResults) {
+        const qr = schemasQueries.queryResults as Record<string, unknown>[];
+        const rows = (qr?.[0]?.rows || []) as Record<string, unknown>[];
+        schemaNames = rows.map(r => (r.schema_name || r.SCHEMA_NAME || r.nspname) as string).filter(Boolean);
+      }
 
       // Filter to specific schema if requested
       if (options.schema) {
@@ -199,7 +222,16 @@ export function registerSchemaCommands(program: Command): void {
         }
 
         const tablesData = tablesResponse.data as Record<string, unknown> | undefined;
-        const rawTables = tablesData?.tables || tablesData?.schema || [];
+        const tablesQueries = tablesResponse.queries as Record<string, unknown> | undefined;
+        let rawTables: unknown[] | Record<string, unknown> = [];
+        if (Array.isArray(tablesData?.tables)) {
+          rawTables = tablesData.tables as unknown[];
+        } else if (tablesQueries?.queryResults) {
+          const qr = tablesQueries.queryResults as Record<string, unknown>[];
+          rawTables = (qr?.[0]?.rows || []) as unknown[];
+        } else if (tablesData?.schema) {
+          rawTables = tablesData.schema as unknown[] | Record<string, unknown>;
+        }
         const tableNames: string[] = Array.isArray(rawTables)
           ? (rawTables as Array<string | Record<string, unknown>>).map(t =>
               typeof t === 'string' ? t : (t.name as string) || String(t))

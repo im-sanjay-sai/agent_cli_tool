@@ -18,6 +18,23 @@ import { success, successList, successCreated, successUpdated, successDeleted } 
 import { invalidInput, fromZodError, networkError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 
+/**
+ * Fetch VT metadata (name + viewQuery) from the schema list.
+ * Needed because fetchVirtualTable (task 'view') requires preQueries + name.
+ */
+async function getVtMetadata(vtId: string): Promise<{ name: string; viewQuery: string } | null> {
+  const response = await listVirtualTablesRemote();
+  if (response.error) return null;
+  const data = response.data as Record<string, unknown> | undefined;
+  const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
+  const vt = allTables.find(t => (t._id as string) === vtId || (t.id as string) === vtId);
+  if (!vt) return null;
+  return {
+    name: (vt.name ?? vt.displayName) as string,
+    viewQuery: vt.viewQuery as string,
+  };
+}
+
 export function registerVirtualTableCommands(program: Command): void {
   const vtCmd = program
     .command('vt')
@@ -68,7 +85,9 @@ export function registerVirtualTableCommands(program: Command): void {
       requireValidId(id, 'virtual table');
       await requireAuth();
       
-      const response = await fetchVirtualTable(id);
+      // Fetch VT metadata first (name + viewQuery) -- the 'view' task needs preQueries
+      const meta = await getVtMetadata(id);
+      const response = await fetchVirtualTable(id, meta?.viewQuery, meta?.name);
       
       if (response.error) {
         throw networkError(response.error);
@@ -206,8 +225,10 @@ export function registerVirtualTableCommands(program: Command): void {
       requireValidId(id, 'virtual table');
       await requireAuth();
       
-      
-      const response = await testVirtualTable(id);
+      // Backend expects table NAME, not ID. Resolve from metadata.
+      const meta = await getVtMetadata(id);
+      const vtName = meta?.name || id;
+      const response = await testVirtualTable(vtName);
       
       if (response.error) {
         throw networkError(response.error);
@@ -229,8 +250,9 @@ export function registerVirtualTableCommands(program: Command): void {
       await requireAuth();
       
       
-      // Fetch VT data from remote, then validate
-      const response = await fetchVirtualTable(id);
+      // Fetch VT metadata first (name + viewQuery) -- the 'view' task needs preQueries
+      const meta = await getVtMetadata(id);
+      const response = await fetchVirtualTable(id, meta?.viewQuery, meta?.name);
       
       if (response.error) {
         throw networkError(response.error);

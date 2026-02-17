@@ -167,7 +167,7 @@ export async function setSectionOrder(dashboardName: string, sectionOrder: unkno
 
 // Report tasks
 export async function fetchReport(reportId: string, filters?: unknown, tenants?: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'report', metadata: { reportId, filters, tenants } });
+  return quillFetch({ task: 'report', metadata: { reportId, dashboardItemId: reportId, filters, tenants } });
 }
 
 export async function fetchReportInfo(reportId: string): Promise<QuillResponse> {
@@ -195,9 +195,9 @@ export async function fetchReportItem(
 }
 
 // Frontend uses dashboardName for the create task
-// customerId: '' = admin mode, visible to all tenants (required for dashboards with tenantKeys)
+// adminMode is already injected globally by quillFetch -- no need for customerId:''
 export async function createReportRemote(dashboardName: string, report: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'create', metadata: { dashboardName, customerId: '', ...report } });
+  return quillFetch({ task: 'create', metadata: { dashboardName, ...report } });
 }
 
 // Frontend uses dashboardItemId not reportId
@@ -205,12 +205,20 @@ export async function deleteReportRemote(reportId: string): Promise<QuillRespons
   return quillFetch({ task: 'delete', metadata: { dashboardItemId: reportId } });
 }
 
-// Virtual table tasks -- frontend uses 'view' task with 'id' field
-export async function fetchVirtualTable(viewId: string, customFieldInfo?: unknown): Promise<QuillResponse> {
+// Virtual table tasks -- frontend uses 'view' task with preQueries (the SQL) + name + id
+// Without preQueries, the backend returns incomplete data causing "Cannot read 'trim'" errors
+export async function fetchVirtualTable(
+  viewId: string,
+  viewQuery?: string,
+  viewName?: string,
+  customFieldInfo?: unknown
+): Promise<QuillResponse> {
   return quillFetch({
     task: 'view',
     metadata: {
       id: viewId,
+      ...(viewQuery ? { preQueries: [viewQuery] } : {}),
+      ...(viewName ? { name: viewName } : {}),
       runQueryConfig: { getColumns: true },
       useNewNodeSql: true,
       customFieldInfo,
@@ -349,10 +357,15 @@ export async function validateTenantMapping(query: string, fromTenantField: stri
 }
 
 // Environment/Client tasks
+// Frontend response: data.client (nested under 'client' key)
+// Callers should unwrap: const client = responseData?.client ?? responseData;
 export async function fetchClient(clientId?: string): Promise<QuillResponse> {
   return quillFetch({
     task: 'client',
-    metadata: clientId ? { clientId } : {},
+    metadata: {
+      ...(clientId ? { clientId } : {}),
+      fetchDefaultDashboard: true,
+    },
   });
 }
 
@@ -419,6 +432,7 @@ export async function fetchEnvironment(): Promise<QuillResponse> {
       removeCustomFieldRef: true,
       useNewCustomFields: true,
       fetchDashboards: true,
+      skipQueries: true, // Frontend sends this -- avoids expensive DB queries
     },
   });
 }
