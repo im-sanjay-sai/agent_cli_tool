@@ -195,8 +195,9 @@ export async function fetchReportItem(
 }
 
 // Frontend uses dashboardName for the create task
+// customerId: '' = admin mode, visible to all tenants (required for dashboards with tenantKeys)
 export async function createReportRemote(dashboardName: string, report: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'create', metadata: { dashboardName, ...report } });
+  return quillFetch({ task: 'create', metadata: { dashboardName, customerId: '', ...report } });
 }
 
 // Frontend uses dashboardItemId not reportId
