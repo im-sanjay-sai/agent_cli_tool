@@ -3,18 +3,15 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 import { notInitialized } from '../output/errors.js';
-import { Environment, EnvironmentSchema } from '../models/index.js';
 
 // Global options from CLI flags
 export interface GlobalOptions {
-  env: string;
   pretty: boolean;
   verbose: boolean;
   token?: string;
 }
 
 let globalOptions: GlobalOptions = {
-  env: 'staging',
   pretty: false,
   verbose: false,
 };
@@ -35,7 +32,6 @@ export const GlobalConfigSchema = z.object({
   clerkOrgId: z.string().optional(),
   email: z.string().optional(),
   orgName: z.string().optional(),
-  defaultEnv: EnvironmentSchema.default('staging'),
   queryEndpoint: z.string().url().optional(),
   serverUrl: z.string().url().optional(),
 });
@@ -47,7 +43,6 @@ export const ProjectConfigSchema = z.object({
   clientId: z.string().optional(),
   queryEndpoint: z.string().url().optional(),
   queryHeaders: z.record(z.string()).optional(),
-  currentEnv: EnvironmentSchema.default('staging'),
   withCredentials: z.boolean().optional(),
 });
 
@@ -116,7 +111,7 @@ async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
 export async function getGlobalConfig(): Promise<GlobalConfig> {
   const config = await readJsonFile(GLOBAL_CONFIG_FILE, GlobalConfigSchema);
   if (config) return config as GlobalConfig;
-  return { defaultEnv: 'staging' } as GlobalConfig;
+  return {} as GlobalConfig;
 }
 
 export async function setGlobalConfig(config: Partial<GlobalConfig>): Promise<GlobalConfig> {
@@ -124,7 +119,6 @@ export async function setGlobalConfig(config: Partial<GlobalConfig>): Promise<Gl
   const merged: GlobalConfig = {
     ...current,
     ...config,
-    defaultEnv: config.defaultEnv || current.defaultEnv || 'staging',
   };
   const updated = GlobalConfigSchema.parse(merged);
   await writeJsonFile(GLOBAL_CONFIG_FILE, updated);
@@ -165,7 +159,7 @@ export async function getProjectConfig(cwd: string = process.cwd()): Promise<Pro
   await requireProjectInitialized(cwd);
   const config = await readJsonFile(getProjectConfigFile(cwd), ProjectConfigSchema);
   if (config) return config as ProjectConfig;
-  return { currentEnv: 'staging' } as ProjectConfig;
+  return {} as ProjectConfig;
 }
 
 export async function setProjectConfig(
@@ -176,12 +170,11 @@ export async function setProjectConfig(
   try {
     current = await getProjectConfig(cwd);
   } catch {
-    current = { currentEnv: 'staging' } as ProjectConfig;
+    current = {} as ProjectConfig;
   }
   const merged = {
     ...current,
     ...config,
-    currentEnv: config.currentEnv || current.currentEnv || 'staging',
   };
   const updated = ProjectConfigSchema.parse(merged) as ProjectConfig;
   await writeJsonFile(getProjectConfigFile(cwd), updated);
@@ -219,45 +212,12 @@ export async function initProjectStore(
   const storeDir = getProjectStoreDir(cwd);
   await ensureDir(storeDir);
 
-  // Create config file
   const config: ProjectConfig = {
-    currentEnv: 'staging',
     clientId: options?.clientId,
     queryEndpoint: options?.queryEndpoint,
   };
   
   await writeJsonFile(getProjectConfigFile(cwd), config);
-}
-
-/**
- * Get current environment (from flag, env var, project config, or global config)
- */
-export async function getCurrentEnv(cwd: string = process.cwd()): Promise<Environment> {
-  // 1. Check CLI flag
-  const opts = getGlobalOptions();
-  if (opts.env && (opts.env === 'staging' || opts.env === 'prod')) {
-    return opts.env as Environment;
-  }
-
-  // 2. Check QUILL_ENV env var
-  const envVar = process.env.QUILL_ENV;
-  if (envVar && (envVar === 'staging' || envVar === 'prod')) {
-    return envVar as Environment;
-  }
-
-  // 3. Check project config
-  try {
-    const projectConfig = await getProjectConfig(cwd);
-    if (projectConfig.currentEnv) {
-      return projectConfig.currentEnv;
-    }
-  } catch {
-    // Project not initialized, continue to global config
-  }
-
-  // 4. Check global config
-  const globalConfig = await getGlobalConfig();
-  return globalConfig.defaultEnv || 'staging';
 }
 
 /**
@@ -268,7 +228,6 @@ export async function getMergedConfig(cwd: string = process.cwd()): Promise<{
   clientId?: string;
   queryEndpoint?: string;
   queryHeaders?: Record<string, string>;
-  currentEnv: Environment;
   withCredentials?: boolean;
   serverUrl?: string;
 }> {
@@ -281,7 +240,6 @@ export async function getMergedConfig(cwd: string = process.cwd()): Promise<{
     // Project not initialized
   }
 
-  const currentEnv = await getCurrentEnv(cwd);
   const opts = getGlobalOptions();
 
   // Env vars take precedence over config files (for CI/CD and agent use)
@@ -290,7 +248,6 @@ export async function getMergedConfig(cwd: string = process.cwd()): Promise<{
     clientId: process.env.QUILL_CLIENT_ID || projectConfig?.clientId,
     queryEndpoint: process.env.QUILL_QUERY_ENDPOINT || projectConfig?.queryEndpoint || globalConfig.queryEndpoint,
     queryHeaders: projectConfig?.queryHeaders,
-    currentEnv,
     withCredentials: projectConfig?.withCredentials,
     serverUrl: process.env.QUILL_SERVER_URL || globalConfig.serverUrl,
   };

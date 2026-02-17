@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { getCurrentEnv } from '../core/config.js';
+// Environment concept removed -- clientId IS the environment
 import { requireAuth } from '../core/auth.js';
 import { validateSqlStructure, extractColumns } from '../utils/ast.js';
 import {
@@ -34,7 +34,7 @@ export function registerDashboardCommands(program: Command): void {
     .option('--offset <n>', 'Skip first N items')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       const response = await fetchDashboards();
       
       if (response.error) {
@@ -51,7 +51,7 @@ export function registerDashboardCommands(program: Command): void {
       if (options.namesOnly) {
         output(successList(
           page.map(d => d.name as string),
-          { source: 'remote', env, total }
+          { source: 'remote', total }
         ));
         return;
       }
@@ -64,7 +64,7 @@ export function registerDashboardCommands(program: Command): void {
             filterCount,
           };
         }),
-        { source: 'remote', env, total }
+        { source: 'remote', total }
       ));
     }));
 
@@ -76,7 +76,7 @@ export function registerDashboardCommands(program: Command): void {
     .option('--full', 'Output the full raw dashboard data (warning: can be very large)')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       const response = await fetchDashboard(name);
       
       if (response.error) {
@@ -84,7 +84,7 @@ export function registerDashboardCommands(program: Command): void {
       }
 
       if (options.full) {
-        output(success(response.data, { source: 'remote', env }));
+        output(success(response.data, { source: 'remote' }));
         return;
       }
       
@@ -107,7 +107,7 @@ export function registerDashboardCommands(program: Command): void {
         filters: data?.filters,
         sectionOrder: data?.sectionOrder,
         tenantKeys: data?.tenantKeys,
-      }, { source: 'remote', env }));
+      }, { source: 'remote' }));
     }));
 
   // Create dashboard
@@ -118,7 +118,7 @@ export function registerDashboardCommands(program: Command): void {
     .option('--file <path>', 'JSON file: { name, tenantKeys?, layout? }')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       let input: Record<string, unknown>;
       
@@ -152,7 +152,7 @@ export function registerDashboardCommands(program: Command): void {
       
       // Frontend reads data.dashboard from response
       const rawData = response.data as Record<string, unknown> | undefined;
-      output(successCreated(rawData?.dashboard ?? rawData, { source: 'remote', env }));
+      output(successCreated(rawData?.dashboard ?? rawData, { source: 'remote' }));
     }));
 
   // Update dashboard
@@ -164,7 +164,7 @@ export function registerDashboardCommands(program: Command): void {
     .option('--file <path>', 'JSON file: { newName?, tenantKeys?, filters? }')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       let updates: Record<string, unknown> = {};
       
@@ -189,7 +189,7 @@ export function registerDashboardCommands(program: Command): void {
       
       // Frontend reads data.dashboard from response
       const updateRawData = response.data as Record<string, unknown> | undefined;
-      output(successUpdated(updateRawData?.dashboard ?? updateRawData, { source: 'remote', env }));
+      output(successUpdated(updateRawData?.dashboard ?? updateRawData, { source: 'remote' }));
     }));
 
   // Delete dashboard
@@ -200,7 +200,7 @@ export function registerDashboardCommands(program: Command): void {
     .option('--force', 'Skip confirmation')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       if (!options.force) {
         const confirmed = await confirmDeletion('dashboard', name);
@@ -216,7 +216,7 @@ export function registerDashboardCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successDeleted(name, 'dashboard', { source: 'remote', env }));
+      output(successDeleted(name, 'dashboard', { source: 'remote' }));
     }));
 
   // Set filters
@@ -227,7 +227,7 @@ export function registerDashboardCommands(program: Command): void {
     .requiredOption('--file <path>', 'JSON file: { globalFilters: [{ id, type, field, label? }] }')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const content = await fs.readFile(options.file, 'utf-8');
       const data = JSON.parse(content);
@@ -246,7 +246,7 @@ export function registerDashboardCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote', env }));
+      output(successUpdated(response.data, { source: 'remote' }));
     }));
 
   // Set section order
@@ -257,7 +257,7 @@ export function registerDashboardCommands(program: Command): void {
     .requiredOption('--file <path>', 'JSON file: { sectionOrder: [{ section, reportOrder: [id, ...] }] }')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const content = await fs.readFile(options.file, 'utf-8');
       const data = JSON.parse(content);
@@ -268,7 +268,7 @@ export function registerDashboardCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote', env }));
+      output(successUpdated(response.data, { source: 'remote' }));
     }));
 
   // Setup: create dashboard + reports + filters in one shot
@@ -281,7 +281,7 @@ export function registerDashboardCommands(program: Command): void {
     .option('--file <path>', 'JSON file: { name, tenantKeys?, layout? }')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
 
       const warnings: string[] = [];
       let dashboardName: string = options.name;
@@ -421,7 +421,6 @@ export function registerDashboardCommands(program: Command): void {
           dashboard: finalData,
         }, {
           source: 'remote',
-          env,
           warnings,
         }));
       } catch (error) {

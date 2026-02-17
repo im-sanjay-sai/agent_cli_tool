@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import * as fs from 'fs/promises';
-import { getCurrentEnv } from '../core/config.js';
+// Environment concept removed -- clientId IS the environment
 import { requireAuth } from '../core/auth.js';
 import { validateSqlStructure, extractColumns } from '../utils/ast.js';
 import {
@@ -33,7 +33,7 @@ export function registerReportCommands(program: Command): void {
     .option('--offset <n>', 'Skip first N items')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const response = await fetchDashboard(options.dashboard);
       
@@ -61,7 +61,7 @@ export function registerReportCommands(program: Command): void {
       const offset = parseInt(options.offset || '0', 10);
       const limit = parseInt(options.limit || '0', 10);
       const page = limit > 0 ? reports.slice(offset, offset + limit) : reports;
-      output(successList(page, { source: 'remote', env, total: reports.length }));
+      output(successList(page, { source: 'remote', total: reports.length }));
     }));
 
   // Show report
@@ -72,7 +72,7 @@ export function registerReportCommands(program: Command): void {
     .action(withErrorHandling(async (id) => {
       requireValidId(id, 'report');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       const response = await fetchReportInfo(id);
       
       if (response.error) {
@@ -82,7 +82,7 @@ export function registerReportCommands(program: Command): void {
       // Frontend reads data.report from the response
       const rawData = response.data as Record<string, unknown> | undefined;
       const reportData = rawData?.report ?? rawData;
-      output(success(reportData, { source: 'remote', env }));
+      output(success(reportData, { source: 'remote' }));
     }));
 
   // Create report
@@ -93,7 +93,7 @@ export function registerReportCommands(program: Command): void {
     .requiredOption('--file <path>', 'JSON file: { name, baseSql, chartType, pivot?, dateField?, filterMap?, columns? }')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const content = await fs.readFile(options.file, 'utf-8');
       const data = JSON.parse(content);
@@ -141,7 +141,7 @@ export function registerReportCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successCreated(response.data, { source: 'remote', env }));
+      output(successCreated(response.data, { source: 'remote' }));
     }));
 
   // Update report
@@ -153,7 +153,7 @@ export function registerReportCommands(program: Command): void {
     .action(withErrorHandling(async (id, options) => {
       requireValidId(id, 'report');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const content = await fs.readFile(options.file, 'utf-8');
       const updates = JSON.parse(content);
@@ -164,7 +164,7 @@ export function registerReportCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote', env }));
+      output(successUpdated(response.data, { source: 'remote' }));
     }));
 
   // Delete report
@@ -176,7 +176,7 @@ export function registerReportCommands(program: Command): void {
     .action(withErrorHandling(async (id, options) => {
       requireValidId(id, 'report');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       if (!options.force) {
         const confirmed = await confirmDeletion('report', id);
@@ -192,7 +192,7 @@ export function registerReportCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successDeleted(id, 'report', { source: 'remote', env }));
+      output(successDeleted(id, 'report', { source: 'remote' }));
     }));
 
   // Run report (execute query)
@@ -204,7 +204,7 @@ export function registerReportCommands(program: Command): void {
     .action(withErrorHandling(async (id, options) => {
       requireValidId(id, 'report');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       let filters;
       if (options.filters) {
@@ -227,7 +227,7 @@ export function registerReportCommands(program: Command): void {
         rows: queryResults?.rows || data?.rows || [],
         fields: queryResults?.fields || data?.fields || [],
         rowCount: queryResults?.rowCount || data?.rowCount || 0,
-      }, { source: 'remote', env }));
+      }, { source: 'remote' }));
     }));
 
   // Validate report
@@ -238,7 +238,7 @@ export function registerReportCommands(program: Command): void {
     .action(withErrorHandling(async (id) => {
       requireValidId(id, 'report');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       // Fetch report data from remote, then validate
       const response = await fetchReportInfo(id);
@@ -254,6 +254,6 @@ export function registerReportCommands(program: Command): void {
         valid: result.valid,
         errors: result.errors,
         warnings: result.warnings,
-      }, { source: 'remote', env }));
+      }, { source: 'remote' }));
     }));
 }

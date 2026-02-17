@@ -1,18 +1,18 @@
 import { Command } from 'commander';
 import { getAuthState } from '../core/auth.js';
-import { getMergedConfig, getCurrentEnv } from '../core/config.js';
+import { getMergedConfig } from '../core/config.js';
 import { testConnection } from '../core/client.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success } from '../output/success.js';
 
 /**
- * `quill status` -- single command to check auth, config, environment, and connection.
+ * `quill status` -- single command to check auth, config, and connection.
  * Designed for agents/CI to quickly diagnose issues.
  */
 export function registerStatusCommand(program: Command): void {
   program
     .command('status')
-    .description('Show authentication, configuration, environment, and connection status in one call')
+    .description('Show authentication, configuration, and connection status')
     .option('--skip-connection-test', 'Skip the database connection test')
     .action(withErrorHandling(async (options) => {
       const warnings: string[] = [];
@@ -22,7 +22,6 @@ export function registerStatusCommand(program: Command): void {
 
       // 2. Config
       const config = await getMergedConfig();
-      const currentEnv = await getCurrentEnv();
 
       // 3. Connection test (optional)
       let connectionStatus: { connected: boolean; message: string } | undefined;
@@ -34,7 +33,6 @@ export function registerStatusCommand(program: Command): void {
             process.env.QUILL_DATABASE_TYPE
           );
           const connData = connResponse.data as Record<string, unknown> | undefined;
-          // Check multiple possible success indicators from the API
           const hasError = connResponse.error || connResponse.status === 'error';
           connectionStatus = {
             connected: !hasError && (
@@ -69,7 +67,6 @@ export function registerStatusCommand(program: Command): void {
           clientId: config.clientId,
           queryEndpoint: config.queryEndpoint,
           serverUrl: config.serverUrl,
-          currentEnv,
         },
         connection: connectionStatus,
       }, {

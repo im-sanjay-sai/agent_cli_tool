@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { getCurrentEnv } from '../core/config.js';
+// Environment concept removed -- clientId IS the environment
 import { requireAuth } from '../core/auth.js';
 import {
   listVirtualTablesRemote,
@@ -32,7 +32,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .option('--offset <n>', 'Skip first N items')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       const response = await listVirtualTablesRemote();
       
       if (response.error) {
@@ -55,7 +55,7 @@ export function registerVirtualTableCommands(program: Command): void {
           ownerTenantFields: t.ownerTenantFields,
           broken: t.broken,
         })),
-        { source: 'remote', env, total }
+        { source: 'remote', total }
       ));
     }));
 
@@ -67,7 +67,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .action(withErrorHandling(async (id) => {
       requireValidId(id, 'virtual table');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       const response = await fetchVirtualTable(id);
       
       if (response.error) {
@@ -78,7 +78,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError('No data returned for virtual table');
       }
       
-      output(success(response.data, { source: 'remote', env }));
+      output(success(response.data, { source: 'remote' }));
     }));
 
   // Create virtual table
@@ -90,7 +90,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .option('--owner-fields <fields>', 'Comma-separated owner tenant fields')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const input = {
         name: options.name,
@@ -132,7 +132,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successCreated(response.data, { source: 'remote', env, warnings: vtWarnings }));
+      output(successCreated(response.data, { source: 'remote', warnings: vtWarnings }));
     }));
 
   // Update virtual table
@@ -146,7 +146,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .action(withErrorHandling(async (id, options) => {
       requireValidId(id, 'virtual table');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const updates: Record<string, unknown> = {};
       
@@ -166,7 +166,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote', env }));
+      output(successUpdated(response.data, { source: 'remote' }));
     }));
 
   // Delete virtual table
@@ -178,7 +178,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .action(withErrorHandling(async (id, options) => {
       requireValidId(id, 'virtual table');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       if (!options.force) {
         const confirmed = await confirmDeletion('virtual table', id);
@@ -194,7 +194,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError(response.error);
       }
       
-      output(successDeleted(id, 'virtual_table', { source: 'remote', env }));
+      output(successDeleted(id, 'virtual_table', { source: 'remote' }));
     }));
 
   // Test virtual table
@@ -205,7 +205,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .action(withErrorHandling(async (id) => {
       requireValidId(id, 'virtual table');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       const response = await testVirtualTable(id);
       
@@ -216,7 +216,7 @@ export function registerVirtualTableCommands(program: Command): void {
       output(success({
         id,
         ...response.data as Record<string, unknown>,
-      }, { source: 'remote', env }));
+      }, { source: 'remote' }));
     }));
 
   // Validate virtual table
@@ -227,7 +227,7 @@ export function registerVirtualTableCommands(program: Command): void {
     .action(withErrorHandling(async (id) => {
       requireValidId(id, 'virtual table');
       await requireAuth();
-      const env = await getCurrentEnv();
+      
       
       // Fetch VT data from remote, then validate
       const response = await fetchVirtualTable(id);
@@ -246,6 +246,6 @@ export function registerVirtualTableCommands(program: Command): void {
         valid: result.valid,
         errors: result.errors,
         warnings: result.warnings,
-      }, { source: 'remote', env }));
+      }, { source: 'remote' }));
     }));
 }

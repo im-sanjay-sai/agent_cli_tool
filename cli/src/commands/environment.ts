@@ -1,20 +1,21 @@
 import { Command } from 'commander';
 import * as fs from 'fs/promises';
 import {
-  getCurrentEnv,
   setProjectConfigValue,
+  getMergedConfig,
 } from '../core/config.js';
 import { requireAuth } from '../core/auth.js';
 import {
+  fetchClient,
   fetchClients,
-  fetchEnvironment,
+  resolveClientId,
   updateClient,
   deleteClient,
 } from '../core/client.js';
 import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successDeleted } from '../output/success.js';
-import { invalidInput, networkError } from '../output/errors.js';
+import { networkError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 
 export function registerEnvironmentCommands(program: Command): void {
@@ -23,7 +24,7 @@ export function registerEnvironmentCommands(program: Command): void {
     .alias('environment')
     .description('Environment/client operations');
 
-  // List environments
+  // List environments -- marks the active one
   envCmd
     .command('list')
     .description('List available environments/clients')
@@ -38,6 +39,10 @@ export function registerEnvironmentCommands(program: Command): void {
         throw networkError(response.error);
       }
       
+      // Get current clientId to mark the active environment
+      const config = await getMergedConfig();
+      const activeClientId = config.clientId;
+
       const clientsData = response.data as Record<string, unknown> | undefined;
       const clients = (clientsData?.clients || []) as Record<string, unknown>[];
       const total = clients.length;
@@ -50,36 +55,33 @@ export function registerEnvironmentCommands(program: Command): void {
           name: c.name,
           databaseType: c.databaseType,
           schemaNames: c.schemaNames,
+          active: (c._id || c.clientId) === activeClientId,
         })),
         { source: 'remote', total }
       ));
     }));
 
-  // Show environment
+  // Show current environment details
   envCmd
     .command('show')
-    .description('Show current environment details')
+    .description('Show current environment/client details')
     .action(withErrorHandling(async () => {
       await requireAuth();
-      const currentEnv = await getCurrentEnv();
       
-      const response = await fetchEnvironment();
+      // Use task: 'client' (lighter than 'environment' which includes all dashboards)
+      const response = await fetchClient();
       
       if (response.error) {
         throw networkError(response.error);
       }
       
       const rawData = response.data as Record<string, unknown> | undefined;
-      // Frontend reads data.environment or data directly
-      const envData = (rawData?.environment ?? rawData) as Record<string, unknown> | undefined;
-      // Only output useful fields -- the raw response includes ALL dashboards
-      // and other heavy data that bloats output (especially for LLM agents).
+      const clientData = (rawData?.client ?? rawData) as Record<string, unknown> | undefined;
       output(success({
-        currentEnv,
-        name: envData?.name,
-        clientId: envData?.clientId || envData?._id,
-        databaseType: envData?.databaseType,
-        schemaNames: envData?.schemaNames,
+        clientId: clientData?.clientId || clientData?._id,
+        name: clientData?.name,
+        databaseType: clientData?.databaseType,
+        schemaNames: clientData?.schemaNames,
       }, { source: 'remote' }));
     }));
 
@@ -137,21 +139,29 @@ export function registerEnvironmentCommands(program: Command): void {
       output(successDeleted(id, 'environment', { source: 'remote' }));
     }));
 
-  // Switch environment
+  // Switch environment -- accepts client name or ID
   envCmd
     .command('switch')
-    .description('Switch between staging and prod (to change client, use `quill config set clientId <id>`)')
-    .argument('<env>', 'Environment: staging or prod')
-    .action(withErrorHandling(async (env) => {
-      if (env !== 'staging' && env !== 'prod') {
-        throw invalidInput('Environment must be "staging" or "prod"');
+    .description('Switch to a different environment/client by name or ID')
+    .argument('<nameOrId>', 'Environment name or client ID')
+    .action(withErrorHandling(async (nameOrId) => {
+      await requireAuth();
+      
+      // Resolve name to clientId
+      const resolved = await resolveClientId(nameOrId);
+      
+      // Update clientId in project config
+      await setProjectConfigValue('clientId', resolved.clientId);
+      
+      // If the resolved client has a queryEndpoint, update that too
+      if (resolved.queryEndpoint) {
+        await setProjectConfigValue('queryEndpoint', resolved.queryEndpoint);
       }
       
-      await setProjectConfigValue('currentEnv', env);
-      
       output(success({
-        message: `Switched to ${env} environment`,
-        currentEnv: env,
+        switched: true,
+        clientId: resolved.clientId,
+        name: resolved.name,
       }));
     }));
 }

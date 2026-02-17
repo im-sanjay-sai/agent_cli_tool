@@ -8,10 +8,6 @@ export * from './virtual-table.js';
 // Common types used across the CLI
 import { z } from 'zod';
 
-// Environment type
-export const EnvironmentSchema = z.enum(['staging', 'prod']);
-export type Environment = z.infer<typeof EnvironmentSchema>;
-
 // Resource types
 export const ResourceTypeSchema = z.enum(['dashboard', 'report', 'virtual_table']);
 export type ResourceType = z.infer<typeof ResourceTypeSchema>;

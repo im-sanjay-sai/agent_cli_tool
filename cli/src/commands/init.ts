@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { loginWithToken, isValidTokenFormat, isAuthenticated, getAuthState } from '../core/auth.js';
-import { initProjectStore, isProjectInitialized, setProjectConfigValue } from '../core/config.js';
+import { initProjectStore, isProjectInitialized } from '../core/config.js';
 import { testConnection } from '../core/client.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success } from '../output/success.js';
@@ -13,7 +13,6 @@ export function registerInitCommand(program: Command): void {
     .option('--token <token>', 'API token for authentication')
     .option('--client-id <id>', 'Quill client ID for this project')
     .option('--query-endpoint <url>', 'Custom query endpoint URL')
-    .option('--env <environment>', 'Default environment (staging|prod)', 'staging')
     .option('--skip-connection-test', 'Skip the database connection test')
     .action(withErrorHandling(async (options) => {
       const steps: Array<{ step: string; status: 'success' | 'skipped' | 'failed'; message: string }> = [];
@@ -68,30 +67,18 @@ export function registerInitCommand(program: Command): void {
         verbose('Step 2: Project already initialized, skipping');
       }
 
-      // Step 3: Set environment
-      const env = options.env || 'staging';
-      if (env === 'staging' || env === 'prod') {
-        try {
-          await setProjectConfigValue('currentEnv', env);
-          steps.push({ step: 'environment', status: 'success', message: `Environment set to ${env}` });
-          verbose(`Step 3: Environment set to ${env}`);
-        } catch {
-          // Project might not be initialized if step 2 failed
-          steps.push({ step: 'environment', status: 'skipped', message: 'Could not set environment (project not initialized)' });
-        }
-      } else {
-        throw invalidInput(`Invalid environment: ${env}. Must be 'staging' or 'prod'.`);
-      }
-
-      // Step 4: Test connection
+      // Step 3: Test connection
       if (options.skipConnectionTest) {
         steps.push({ step: 'connection', status: 'skipped', message: 'Connection test skipped (--skip-connection-test)' });
-        verbose('Step 4: Connection test skipped');
+        verbose('Step 3: Connection test skipped');
       } else {
         const authOk = steps.find(s => s.step === 'auth')?.status !== 'failed';
         if (authOk) {
           try {
-            const response = await testConnection();
+            const response = await testConnection(
+              process.env.QUILL_DATABASE_CONNECTION_STRING,
+              process.env.QUILL_DATABASE_TYPE
+            );
             const connData = response.data as Record<string, unknown> | undefined;
             const connected = connData?.success === true;
             steps.push({
@@ -101,14 +88,14 @@ export function registerInitCommand(program: Command): void {
                 ? 'Database connection verified'
                 : `Connection test failed: ${(connData?.message as string) || response.error || 'Unknown error'}`,
             });
-            verbose(`Step 4: Connection test ${connected ? 'passed' : 'failed'}`);
+            verbose(`Step 3: Connection test ${connected ? 'passed' : 'failed'}`);
           } catch (error) {
             steps.push({
               step: 'connection',
               status: 'failed',
               message: `Connection test error: ${error instanceof Error ? error.message : String(error)}`,
             });
-            verbose('Step 4: Connection test threw an error');
+            verbose('Step 3: Connection test threw an error');
           }
         } else {
           steps.push({
@@ -116,7 +103,7 @@ export function registerInitCommand(program: Command): void {
             status: 'skipped',
             message: 'Skipped (not authenticated)',
           });
-          verbose('Step 4: Skipped connection test (not authenticated)');
+          verbose('Step 3: Skipped connection test (not authenticated)');
         }
       }
 

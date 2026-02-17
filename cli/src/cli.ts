@@ -27,7 +27,6 @@ export function createCli(): Command {
     .name('quill')
     .description('CLI tool for Quill BI - manage dashboards, reports, and virtual tables. All output is JSON.')
     .version(pkg.version)
-    .option('--env <environment>', 'Target environment (staging|prod)', 'staging')
     .option('--pretty', 'Pretty-print JSON output')
     .option('--verbose', 'Enable verbose logging to stderr')
     .option('--token <token>', 'API token for authentication')

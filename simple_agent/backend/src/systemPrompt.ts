@@ -96,16 +96,16 @@ Use \`quill dashboard setup --name "Name" --reports ./reports/ --pretty\` for on
 
 ### Promoting / copying reports
 \`promote report\` can do TWO things depending on --from/--to:
-- **Cross-dashboard copy** (same env): Use the SAME client ID for --from and --to. The report is copied to the target dashboard.
-  \`quill promote report <id> --to-dashboard "target-dash" --from <clientId> --to <clientId> --pretty\`
-- **Cross-environment promotion**: Use DIFFERENT client IDs for --from and --to.
-  \`quill promote report <id> --to-dashboard "dash" --from <stagingClientId> --to <prodClientId> --pretty\`
+- **Cross-dashboard copy** (same env): Use the SAME environment name for --from and --to.
+  \`quill promote report <id> --to-dashboard "target-dash" --from "MyEnv" --to "MyEnv" --pretty\`
+- **Cross-environment promotion**: Use DIFFERENT environment names.
+  \`quill promote report <id> --to-dashboard "dash" --from "Development" --to "Production" --pretty\`
+
+--from and --to accept either an environment **name** or a **client ID**.
 
 For dashboard and VT promotion (cross-env only, --from must differ from --to):
-1. \`quill promote dashboard "Name" --from <sourceClientId> --to <targetClientId> --pretty\`
-2. \`quill promote vt "vtName" --from <sourceClientId> --to <targetClientId> --pretty\`
-
-Get the current client ID from \`quill status --pretty\` (config.clientId field).
+1. \`quill promote dashboard "Name" --from "Development" --to "Production" --pretty\`
+2. \`quill promote vt "vtName" --from "Development" --to "Production" --pretty\`
 
 ### Moving a report to a different section
 Sections are managed at the dashboard level, not the report level. You cannot move a report by updating the report itself.
@@ -114,11 +114,11 @@ Workflow:
 2. Build a new sectionOrder JSON with the report ID in the desired section
 3. \`quill dashboard set-section-order "Name" --file '{"sectionOrder":[{"section":"TargetSection","reportOrder":["reportId1","reportId2"]}]}' --pretty\`
 
-### Switching to a different client/environment
-\`env switch\` only toggles staging/prod within the same client. To switch to a different client entirely:
-1. \`quill env list --pretty\` — find the target client ID
-2. \`quill config set clientId <targetClientId>\` — switch to it
-Do NOT try \`env switch "Client Name"\` — it only accepts "staging" or "prod".
+### Switching environments
+\`env switch\` accepts an environment name or client ID:
+  \`quill env switch "Production" --pretty\`
+  \`quill env switch 65809ec85375e445ddc1990e --pretty\`
+Use \`quill env list --pretty\` to see all available environments (active one is marked).
 
 ### AI pivot (structured JSON required)
 AI pivot needs structured column metadata, NOT natural language. Workflow:
@@ -191,7 +191,7 @@ quill ai pivot --file '{"pivotCountRequest":5,...}' --pretty  # Structured JSON 
 ### Environments
 quill env show --pretty                           # Current env (compact)
 quill env list --pretty                           # All envs (heavier)
-quill env switch staging --pretty
+quill env switch "EnvName" --pretty                # Switch by name or client ID
 quill env update <id> --file '{"name":"...","schemaNames":["public"]}' --pretty
 quill env delete <id> --force --pretty
 
@@ -201,10 +201,10 @@ quill tenant mapping get --dashboard "Name" --pretty
 quill tenant validate --query "SQL" --from-field f1 --to-field f2 --pretty
 
 ### Promotion (cross-environment)
-quill promote dashboard "Name" --from <clientId> --to <clientId> --pretty
-quill promote dashboard "Name" --from <clientId> --to <clientId> --auto-resolve --pretty
-quill promote report <id> --to-dashboard "target" --from <clientId> --to <clientId> --pretty  # same IDs = cross-dashboard copy
-quill promote vt "vtName" --from <clientId> --to <clientId> --pretty
+quill promote dashboard "Name" --from "Development" --to "Production" --pretty
+quill promote dashboard "Name" --from "Dev" --to "Prod" --auto-resolve --pretty
+quill promote report <id> --to-dashboard "target" --from "MyEnv" --to "MyEnv" --pretty  # same env = cross-dashboard copy
+quill promote vt "vtName" --from "Development" --to "Production" --pretty
 
 ### Utility
 quill template <name> --pretty                    # Show JSON template for --file flags

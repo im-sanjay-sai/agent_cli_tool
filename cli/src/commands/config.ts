@@ -6,7 +6,6 @@ import {
   setProjectConfigValue,
   initProjectStore,
   isProjectInitialized,
-  getCurrentEnv,
 } from '../core/config.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
@@ -61,17 +60,13 @@ export function registerConfigCommands(program: Command): void {
         // Project not initialized
       }
       
-      const currentEnv = await getCurrentEnv();
-      
       if (key) {
-        // Get specific key
         let value: unknown;
         if (options.global) {
           value = (globalConfig as Record<string, unknown>)[key];
         } else if (options.project) {
           value = projectConfig ? (projectConfig as Record<string, unknown>)[key] : undefined;
         } else {
-          // Merged: project overrides global
           value = projectConfig 
             ? (projectConfig as Record<string, unknown>)[key] ?? (globalConfig as Record<string, unknown>)[key]
             : (globalConfig as Record<string, unknown>)[key];
@@ -79,11 +74,9 @@ export function registerConfigCommands(program: Command): void {
         
         output(success({ [key]: value }));
       } else {
-        // Get all config
         output(success({
           global: globalConfig,
           project: projectConfig,
-          currentEnv,
         }));
       }
     }));
@@ -96,22 +89,18 @@ export function registerConfigCommands(program: Command): void {
     .argument('<value>', 'Configuration value')
     .option('--global', 'Set in global config')
     .action(withErrorHandling(async (key, value, options) => {
-      // Parse value -- only coerce booleans, keep everything else as strings
-      // to prevent corrupting tokens/IDs that look numeric
       let parsedValue: unknown = value;
       if (value === 'true') parsedValue = true;
       else if (value === 'false') parsedValue = false;
       
       if (options.global) {
-        // Set global config
-        const validKeys = ['token', 'defaultEnv', 'queryEndpoint', 'serverUrl'];
+        const validKeys = ['token', 'queryEndpoint', 'serverUrl'];
         if (!validKeys.includes(key)) {
           throw invalidInput(`Invalid global config key: ${key}. Valid keys: ${validKeys.join(', ')}`);
         }
         await setGlobalConfigValue(key as any, parsedValue as any);
       } else {
-        // Set project config
-        const validKeys = ['clientId', 'queryEndpoint', 'currentEnv', 'withCredentials', 'queryHeaders'];
+        const validKeys = ['clientId', 'queryEndpoint', 'withCredentials', 'queryHeaders'];
         if (!validKeys.includes(key)) {
           throw invalidInput(`Invalid project config key: ${key}. Valid keys: ${validKeys.join(', ')}`);
         }

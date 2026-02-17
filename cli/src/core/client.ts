@@ -348,8 +348,53 @@ export async function validateTenantMapping(query: string, fromTenantField: stri
 }
 
 // Environment/Client tasks
-export async function fetchClient(): Promise<QuillResponse> {
-  return quillFetch({ task: 'client' });
+export async function fetchClient(clientId?: string): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'client',
+    metadata: clientId ? { clientId } : {},
+  });
+}
+
+/**
+ * Resolve a client name or ID to a clientId.
+ * - If 24-char hex string, returns it as-is (already a clientId)
+ * - Otherwise, fetches all clients and matches by name (case-insensitive)
+ * Returns { clientId, name, queryEndpoint } or throws NOT_FOUND
+ */
+export async function resolveClientId(nameOrId: string): Promise<{
+  clientId: string;
+  name: string;
+  queryEndpoint?: string;
+}> {
+  // If it looks like a MongoDB ObjectId, use directly
+  if (/^[0-9a-fA-F]{24}$/.test(nameOrId)) {
+    return { clientId: nameOrId, name: nameOrId };
+  }
+
+  // Otherwise resolve by name
+  const response = await fetchClients();
+  if (response.error) {
+    throw networkError(response.error);
+  }
+
+  const clientsData = response.data as Record<string, unknown> | undefined;
+  const clients = (clientsData?.clients || []) as Record<string, unknown>[];
+  const match = clients.find(
+    (c) => (c.name as string)?.toLowerCase() === nameOrId.toLowerCase()
+  );
+
+  if (!match) {
+    const available = clients.map((c) => `${c.name} (${c._id})`).join(', ');
+    throw notFound(
+      `No environment found with name "${nameOrId}". Available: ${available}`
+    );
+  }
+
+  return {
+    clientId: (match._id || match.clientId) as string,
+    name: match.name as string,
+    queryEndpoint: match.queryEndpoint as string | undefined,
+  };
 }
 
 export async function fetchClients(): Promise<QuillResponse> {
