@@ -1,6 +1,6 @@
 # Quill CLI — Complete Command Reference
 
-All 56 commands available in the Quill CLI. The agent knows all of these.
+All commands available in the Quill CLI.
 
 ## Global Flags
 
@@ -8,7 +8,6 @@ All commands support these flags:
 
 | Flag | Description |
 |------|-------------|
-| `--env <staging\|prod>` | Target environment (default: staging) |
 | `--pretty` | Pretty-print JSON output |
 | `--verbose` | Verbose logging to stderr |
 | `--token <token>` | API token override |
@@ -40,7 +39,8 @@ Dashboards are identified by **name**, not ID.
 ```bash
 quill dashboard list                  # List all (name + filterCount)
 quill dashboard list --names-only     # Just names (lightweight)
-quill dashboard show "Name"           # Summary: reports, sections, filters
+quill dashboard list --limit 10 --offset 0  # Pagination
+quill dashboard show "Name"           # Summary: reports, sections, filters, tenantKeys
 quill dashboard show "Name" --full    # Full raw data (warning: can be huge)
 quill dashboard create --name "Name"
 quill dashboard setup --name "Name" --reports dir/ --filters filters.json  # One-shot
@@ -56,6 +56,7 @@ Reports are identified by **ID** (24-char hex).
 
 ```bash
 quill report list --dashboard "Name"
+quill report list --dashboard "Name" --limit 30 --offset 0  # Pagination
 quill report show <id>
 quill report create --dashboard "Name" --file report.json
 quill report update <id> --file updates.json
@@ -71,6 +72,7 @@ Virtual tables are identified by **ID**. Alias: `quill virtual-table`.
 
 ```bash
 quill vt list
+quill vt list --limit 10 --offset 0  # Pagination
 quill vt show <id>
 quill vt create --name "name" --sql "SELECT ..." --owner-fields "org_id"
 quill vt update <id> --sql "SELECT ..." --name "new_name" --owner-fields "f1"
@@ -108,15 +110,18 @@ quill query explain --sql "SELECT ..."           # Execution plan (EXPLAIN)
 quill ai query "natural language"                # Generate SQL
 quill ai fix --sql "broken" --error "msg"        # Fix SQL
 quill ai edit --sql "SELECT ..." --prompt "change this"  # Edit SQL
-quill ai pivot "group by category and month"     # Generate pivot config
+quill ai pivot --file pivot-config.json          # Generate pivot (requires structured JSON)
 ```
 
 ## Environments (5 commands)
 
+An environment = a Quill client instance (its own DB, dashboards, reports).
+
 ```bash
-quill env list                        # List all environments/clients
+quill env list                        # List all environments (active one marked)
+quill env list --limit 10 --offset 0  # Pagination
 quill env show                        # Current environment details
-quill env switch staging              # Switch environment
+quill env switch "EnvName"            # Switch by environment name or client ID
 quill env update <id> --file config.json
 quill env delete <id> --force
 ```
@@ -127,32 +132,39 @@ Tenant commands require `--dashboard <name>`.
 
 ```bash
 quill tenant list --dashboard "Name"
+quill tenant list --dashboard "Name" --limit 10 --offset 0  # Pagination
 quill tenant mapping get --dashboard "Name"
 quill tenant validate --query "SQL" --from-field f1 --to-field f2
 ```
 
-## Promotion (3 commands)
+## Promotion / Copying (3 commands)
 
-Promote copies resources between environments/clients. Requires `--from` and `--to` client IDs.
+`--from` and `--to` accept environment **names** or **client IDs**.
 
 ```bash
-quill promote dashboard "Name" --from <sourceClientId> --to <targetClientId>
-quill promote dashboard "Name" --from <id> --to <id> --auto-resolve
-quill promote report <id> --dashboard "Name" --from <id> --to <id>
-quill promote vt "vtName" --from <sourceClientId> --to <targetClientId>
+# Cross-environment promotion (--from and --to must differ)
+quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv"
+quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv" --auto-resolve
+quill promote vt "vtName" --from "SourceEnv" --to "TargetEnv"
+
+# Report promotion/copying (same --from/--to = cross-dashboard copy within same env)
+quill promote report <id> --to-dashboard "target" --from "EnvName" --to "EnvName"
+quill promote report <id> --to-dashboard "target" --from "SourceEnv" --to "TargetEnv"
 ```
 
 ## Utility (1 command)
 
 ```bash
 quill template <name>                 # Show JSON template for --file flags
+# Short aliases: report, dashboard, filters, pivot, env
+# Full names: report-create, dashboard-create, dashboard-filters, pivot-config, env-update
 ```
 
 ## JSON Output Contract
 
 **Success:**
 ```json
-{ "ok": true, "data": { ... }, "warnings": [], "meta": { "env": "staging" } }
+{ "ok": true, "data": { ... }, "warnings": [], "meta": { "source": "remote", "timestamp": "..." } }
 ```
 
 **Error:**
