@@ -62,6 +62,7 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
           task: options.task,
           clientId: config.clientId,
           adminMode: true,
+          tenants: ['QUILL_ALL_TENANTS'],
           databaseType: process.env.QUILL_DATABASE_TYPE || undefined,
           useNewNodeSql: true,
           ...options.metadata,
@@ -195,9 +196,19 @@ export async function fetchReportItem(
 }
 
 // Frontend uses dashboardName for the create task
-// adminMode is already injected globally by quillFetch -- no need for customerId:''
+// customerId: '' = admin mode (visible to all tenants), needed for dashboards with tenantKeys
+// rows/compareRows: undefined prevents accidentally sending huge data payloads in the report spread
 export async function createReportRemote(dashboardName: string, report: Record<string, unknown>): Promise<QuillResponse> {
-  return quillFetch({ task: 'create', metadata: { dashboardName, ...report } });
+  return quillFetch({
+    task: 'create',
+    metadata: {
+      dashboardName,
+      customerId: '',
+      rows: undefined,
+      compareRows: undefined,
+      ...report,
+    },
+  });
 }
 
 // Frontend uses dashboardItemId not reportId
