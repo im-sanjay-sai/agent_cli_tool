@@ -95,17 +95,17 @@ Use \`quill dashboard setup --name "Name" --reports ./reports/ --pretty\` for on
 2. \`quill query run --sql "..." --auto-fix --pretty\` — execute with auto-fix
 
 ### Promoting / copying reports
-\`promote report\` can do TWO things depending on --from/--to:
-- **Cross-dashboard copy** (same env): Use the SAME environment name for --from and --to.
-  \`quill promote report <id> --to-dashboard "target-dash" --from "MyEnv" --to "MyEnv" --pretty\`
-- **Cross-environment promotion**: Use DIFFERENT environment names.
-  \`quill promote report <id> --to-dashboard "dash" --from "Development" --to "Production" --pretty\`
+--from and --to accept an environment **name** or **client ID**. Use \`quill env list --pretty\` to see available names.
 
---from and --to accept either an environment **name** or a **client ID**.
+\`promote report\` can do TWO things:
+- **Cross-dashboard copy** (same env): Use the SAME env name for --from and --to.
+  \`quill promote report <id> --to-dashboard "target-dash" --from "EnvName" --to "EnvName" --pretty\`
+- **Cross-environment promotion**: Use DIFFERENT env names.
+  \`quill promote report <id> --to-dashboard "dash" --from "SourceEnv" --to "TargetEnv" --pretty\`
 
 For dashboard and VT promotion (cross-env only, --from must differ from --to):
-1. \`quill promote dashboard "Name" --from "Development" --to "Production" --pretty\`
-2. \`quill promote vt "vtName" --from "Development" --to "Production" --pretty\`
+1. \`quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv" --pretty\`
+2. \`quill promote vt "vtName" --from "SourceEnv" --to "TargetEnv" --pretty\`
 
 ### Moving a report to a different section
 Sections are managed at the dashboard level, not the report level. You cannot move a report by updating the report itself.
@@ -201,10 +201,10 @@ quill tenant mapping get --dashboard "Name" --pretty
 quill tenant validate --query "SQL" --from-field f1 --to-field f2 --pretty
 
 ### Promotion (cross-environment)
-quill promote dashboard "Name" --from "Development" --to "Production" --pretty
-quill promote dashboard "Name" --from "Dev" --to "Prod" --auto-resolve --pretty
-quill promote report <id> --to-dashboard "target" --from "MyEnv" --to "MyEnv" --pretty  # same env = cross-dashboard copy
-quill promote vt "vtName" --from "Development" --to "Production" --pretty
+quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv" --pretty
+quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv" --auto-resolve --pretty
+quill promote report <id> --to-dashboard "target" --from "EnvName" --to "EnvName" --pretty  # same env = cross-dashboard copy
+quill promote vt "vtName" --from "SourceEnv" --to "TargetEnv" --pretty
 
 ### Utility
 quill template <name> --pretty                    # Show JSON template for --file flags
