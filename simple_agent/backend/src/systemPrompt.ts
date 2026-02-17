@@ -32,7 +32,7 @@ Large outputs destroy context. Follow these rules:
 1. **Dashboard listing**: ALWAYS use \`--names-only\`: \`quill dashboard list --names-only --pretty\`
 2. **Dashboard details**: Use \`quill dashboard show "name" --pretty\` (returns summary). NEVER use \`--full\`.
 3. **Reports in a dashboard**: Use \`quill report list --dashboard "name" --pretty\` — NOT \`dashboard show\`.
-4. **Environment info**: Use \`quill env show --pretty\` (compact). AVOID \`quill env list\` (heavy).
+4. **Environment info**: Use \`quill env show --pretty\` for current env. Use \`quill env list --pretty\` to see all environments (needed for switching/promoting).
 5. **Virtual tables**: \`quill vt list --pretty\` is compact now. Use \`quill vt show <id>\` for full SQL.
 6. **Schema**: Use \`quill schema tables --schema public --pretty\` to list tables. Use \`quill schema columns <table> --pretty\` for one table. AVOID \`schema explore\` (slow + large).
 7. **If output says "_truncated"**, tell the user and offer to fetch the next page.
@@ -94,18 +94,20 @@ Use \`quill dashboard setup --name "Name" --reports ./reports/ --pretty\` for on
 1. \`quill ai query "natural language" --pretty\` — generate SQL
 2. \`quill query run --sql "..." --auto-fix --pretty\` — execute with auto-fix
 
-### Promoting / copying reports
---from and --to accept an environment **name** or **client ID**. Use \`quill env list --pretty\` to see available names.
+### Promoting / copying
+In Quill, an **environment** is a separate Quill instance (its own client ID, database, dashboards, reports). Each has a unique name (e.g., "NotStripe3", "Databricks Newest") and a client ID (24-char hex).
+
+**IMPORTANT**: Before promoting, run \`quill env list --pretty\` to get the environment names and IDs. The output shows \`id\`, \`name\`, and \`active: true\` for the current one. Use either the **name** or **id** for --from/--to.
 
 \`promote report\` can do TWO things:
-- **Cross-dashboard copy** (same env): Use the SAME env name for --from and --to.
+- **Cross-dashboard copy** (same env): Same name for --from and --to. Copies the report to a different dashboard within the same environment.
   \`quill promote report <id> --to-dashboard "target-dash" --from "EnvName" --to "EnvName" --pretty\`
-- **Cross-environment promotion**: Use DIFFERENT env names.
-  \`quill promote report <id> --to-dashboard "dash" --from "SourceEnv" --to "TargetEnv" --pretty\`
+- **Cross-environment promotion**: Different names for --from and --to.
+  \`quill promote report <id> --to-dashboard "dash" --from "SourceEnvName" --to "TargetEnvName" --pretty\`
 
 For dashboard and VT promotion (cross-env only, --from must differ from --to):
-1. \`quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv" --pretty\`
-2. \`quill promote vt "vtName" --from "SourceEnv" --to "TargetEnv" --pretty\`
+1. \`quill promote dashboard "DashName" --from "SourceEnvName" --to "TargetEnvName" --pretty\`
+2. \`quill promote vt "vtName" --from "SourceEnvName" --to "TargetEnvName" --pretty\`
 
 ### Moving a report to a different section
 Sections are managed at the dashboard level, not the report level. You cannot move a report by updating the report itself.
@@ -115,10 +117,10 @@ Workflow:
 3. \`quill dashboard set-section-order "Name" --file '{"sectionOrder":[{"section":"TargetSection","reportOrder":["reportId1","reportId2"]}]}' --pretty\`
 
 ### Switching environments
-\`env switch\` accepts an environment name or client ID:
-  \`quill env switch "Production" --pretty\`
-  \`quill env switch 65809ec85375e445ddc1990e --pretty\`
-Use \`quill env list --pretty\` to see all available environments (active one is marked).
+1. \`quill env list --pretty\` — see all environments (active one has \`active: true\`)
+2. \`quill env switch "EnvName" --pretty\` — switch by name
+   Or: \`quill env switch <clientId> --pretty\` — switch by ID
+This updates the active client ID and query endpoint in your config.
 
 ### AI pivot (structured JSON required)
 AI pivot needs structured column metadata, NOT natural language. Workflow:
@@ -200,11 +202,11 @@ quill tenant list --dashboard "Name" --pretty
 quill tenant mapping get --dashboard "Name" --pretty
 quill tenant validate --query "SQL" --from-field f1 --to-field f2 --pretty
 
-### Promotion (cross-environment)
-quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv" --pretty
-quill promote dashboard "Name" --from "SourceEnv" --to "TargetEnv" --auto-resolve --pretty
+### Promotion / Copying (--from/--to accept env names or client IDs)
+quill promote dashboard "Name" --from "SourceEnvName" --to "TargetEnvName" --pretty
+quill promote dashboard "Name" --from "SourceEnvName" --to "TargetEnvName" --auto-resolve --pretty
 quill promote report <id> --to-dashboard "target" --from "EnvName" --to "EnvName" --pretty  # same env = cross-dashboard copy
-quill promote vt "vtName" --from "SourceEnv" --to "TargetEnv" --pretty
+quill promote vt "vtName" --from "SourceEnvName" --to "TargetEnvName" --pretty
 
 ### Utility
 quill template <name> --pretty                    # Show JSON template for --file flags
