@@ -17,7 +17,7 @@ import { DashboardCreateInputSchema, DashboardFiltersUpdateSchema, ReportCreateI
 import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
-import { invalidInput, fromZodError, networkError } from '../output/errors.js';
+import { invalidInput, fromZodError, networkError, apiError } from '../output/errors.js';
 
 export function registerDashboardCommands(program: Command): void {
   const dashCmd = program
@@ -38,7 +38,7 @@ export function registerDashboardCommands(program: Command): void {
       const response = await fetchDashboards();
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;
@@ -80,7 +80,7 @@ export function registerDashboardCommands(program: Command): void {
       const response = await fetchDashboard(name);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
 
       if (options.full) {
@@ -147,7 +147,7 @@ export function registerDashboardCommands(program: Command): void {
       });
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // Frontend reads data.dashboard from response
@@ -184,7 +184,7 @@ export function registerDashboardCommands(program: Command): void {
       const response = await editDashboard(name, updates);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // Frontend reads data.dashboard from response
@@ -213,7 +213,7 @@ export function registerDashboardCommands(program: Command): void {
       const response = await deleteDashboardRemote(name);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successDeleted(name, 'dashboard', { source: 'remote' }));
@@ -243,7 +243,7 @@ export function registerDashboardCommands(program: Command): void {
       });
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successUpdated(response.data, { source: 'remote' }));
@@ -265,7 +265,7 @@ export function registerDashboardCommands(program: Command): void {
       const response = await setSectionOrder(name, data.sectionOrder || data);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successUpdated(response.data, { source: 'remote' }));

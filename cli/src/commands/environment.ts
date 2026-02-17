@@ -15,7 +15,7 @@ import {
 import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successDeleted } from '../output/success.js';
-import { networkError } from '../output/errors.js';
+import { apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 
 export function registerEnvironmentCommands(program: Command): void {
@@ -36,7 +36,7 @@ export function registerEnvironmentCommands(program: Command): void {
       const response = await fetchClients();
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // Get current clientId to mark the active environment
@@ -72,7 +72,7 @@ export function registerEnvironmentCommands(program: Command): void {
       const response = await fetchClient();
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const rawData = response.data as Record<string, unknown> | undefined;
@@ -101,7 +101,7 @@ export function registerEnvironmentCommands(program: Command): void {
       const response = await updateClient(id, updates);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const updateData = response.data as Record<string, unknown> | undefined;
@@ -133,7 +133,7 @@ export function registerEnvironmentCommands(program: Command): void {
       const response = await deleteClient(id);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successDeleted(id, 'environment', { source: 'remote' }));

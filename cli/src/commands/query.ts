@@ -4,7 +4,7 @@ import { requireAuth } from '../core/auth.js';
 import { executeQuery, parseToAst, buildFromAst, aiFix } from '../core/client.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success } from '../output/success.js';
-import { invalidInput, networkError } from '../output/errors.js';
+import { invalidInput, networkError, apiError } from '../output/errors.js';
 
 export function registerQueryCommands(program: Command): void {
   const queryCmd = program
@@ -40,7 +40,7 @@ export function registerQueryCommands(program: Command): void {
 
         if (!fixedSql) {
           verbose('AI fix did not return a corrected query');
-          throw networkError(response.error);
+          throw apiError(response.error);
         }
 
         verbose(`AI suggested fix: ${fixedSql}`);
@@ -79,7 +79,7 @@ export function registerQueryCommands(program: Command): void {
       }
 
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const queries = response.queries as Record<string, unknown> | undefined;
@@ -127,7 +127,7 @@ export function registerQueryCommands(program: Command): void {
       const response = await buildFromAst(ast);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // Frontend reads data.query from sqlify response
@@ -150,7 +150,7 @@ export function registerQueryCommands(program: Command): void {
       const response = await executeQuery(explainSql);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const queries = response.queries as Record<string, unknown> | undefined;

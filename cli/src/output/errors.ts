@@ -108,6 +108,28 @@ export function networkError(message: string, details?: Record<string, unknown>)
   ]);
 }
 
+/**
+ * Map an API response error string to the correct CliError type.
+ * The Quill API often returns errors with HTTP 200, so we can't rely
+ * on status codes. Instead, parse the error message to determine the type.
+ */
+export function apiError(message: string): CliError {
+  const lower = message.toLowerCase();
+  if (lower.includes('not found') || lower.includes('does not exist')) {
+    return new CliError(ErrorCode.NOT_FOUND, message, undefined, [
+      'Check that the resource exists',
+      'Verify the name or ID is correct',
+    ]);
+  }
+  if (lower.includes('not authorized') || lower.includes('not enabled') || lower.includes('unauthorized')) {
+    return authRequired(message);
+  }
+  if (lower.includes('required') || lower.includes('invalid') || lower.includes('must be')) {
+    return invalidInput(message);
+  }
+  return networkError(message);
+}
+
 export function validationError(message: string, details?: Record<string, unknown>): CliError {
   return new CliError(ErrorCode.VALIDATION_ERROR, message, details, [
     'Check the input data format',

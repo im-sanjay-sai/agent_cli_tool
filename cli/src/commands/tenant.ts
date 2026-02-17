@@ -7,7 +7,7 @@ import {
 } from '../core/client.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList } from '../output/success.js';
-import { networkError } from '../output/errors.js';
+import { apiError } from '../output/errors.js';
 
 export function registerTenantCommands(program: Command): void {
   const tenantCmd = program
@@ -27,7 +27,7 @@ export function registerTenantCommands(program: Command): void {
       const response = await fetchViewerTenants(options.dashboard);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const tenantsData = response.data as Record<string, unknown> | undefined;
@@ -54,7 +54,7 @@ export function registerTenantCommands(program: Command): void {
       const response = await fetchTenantMapping(options.dashboard);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // Frontend parses data.queryOrder + queries.queryResults for the mapping data
@@ -90,7 +90,7 @@ export function registerTenantCommands(program: Command): void {
       const response = await validateTenantMapping(options.query, options.fromField, options.toField);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const validateData = response.data as Record<string, unknown> | undefined;

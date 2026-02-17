@@ -9,7 +9,7 @@ import {
 } from '../core/client.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList } from '../output/success.js';
-import { networkError } from '../output/errors.js';
+import { networkError, apiError } from '../output/errors.js';
 
 export function registerSchemaCommands(program: Command): void {
   const schemaCmd = program
@@ -26,7 +26,7 @@ export function registerSchemaCommands(program: Command): void {
       const response = await fetchSchemaNames();
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // The API returns schemas in multiple possible formats:
@@ -64,7 +64,7 @@ export function registerSchemaCommands(program: Command): void {
       }
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // The backend may return tables in multiple formats:
@@ -102,7 +102,7 @@ export function registerSchemaCommands(program: Command): void {
       const response = await fetchTableInfo(schema, tableName);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const columnsData = response.data as Record<string, unknown> | undefined;
@@ -160,7 +160,7 @@ export function registerSchemaCommands(program: Command): void {
 
         const response = await fetchTableInfo(schema, tableName);
         if (response.error) {
-          throw networkError(response.error);
+          throw apiError(response.error);
         }
 
         const columnsData = response.data as Record<string, unknown> | undefined;

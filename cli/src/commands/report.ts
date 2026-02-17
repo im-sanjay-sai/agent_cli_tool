@@ -16,7 +16,7 @@ import { ReportCreateInputSchema } from '../models/index.js';
 import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
-import { fromZodError, networkError } from '../output/errors.js';
+import { fromZodError, apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 
 export function registerReportCommands(program: Command): void {
@@ -38,7 +38,7 @@ export function registerReportCommands(program: Command): void {
       const response = await fetchDashboard(options.dashboard);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;
@@ -76,7 +76,7 @@ export function registerReportCommands(program: Command): void {
       const response = await fetchReportInfo(id);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       // Frontend reads data.report from the response
@@ -138,7 +138,7 @@ export function registerReportCommands(program: Command): void {
       });
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successCreated(response.data, { source: 'remote' }));
@@ -161,7 +161,7 @@ export function registerReportCommands(program: Command): void {
       const response = await updateReportRemote(id, updates);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successUpdated(response.data, { source: 'remote' }));
@@ -189,7 +189,7 @@ export function registerReportCommands(program: Command): void {
       const response = await deleteReportRemote(id);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successDeleted(id, 'report', { source: 'remote' }));
@@ -215,7 +215,7 @@ export function registerReportCommands(program: Command): void {
       const response = await fetchReport(id, filters);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;
@@ -244,7 +244,7 @@ export function registerReportCommands(program: Command): void {
       const response = await fetchReportInfo(id);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const reportData = response.data as Record<string, unknown>;

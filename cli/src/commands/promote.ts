@@ -8,7 +8,7 @@ import {
 } from '../core/client.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
-import { invalidInput, networkError } from '../output/errors.js';
+import { invalidInput, apiError } from '../output/errors.js';
 
 export function registerPromoteCommands(program: Command): void {
   const promoteCmd = program
@@ -53,7 +53,7 @@ export function registerPromoteCommands(program: Command): void {
       });
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;
@@ -105,7 +105,7 @@ export function registerPromoteCommands(program: Command): void {
       });
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;
@@ -155,7 +155,7 @@ export function registerPromoteCommands(program: Command): void {
       });
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;

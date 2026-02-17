@@ -9,7 +9,7 @@ import {
 } from '../core/client.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
-import { networkError } from '../output/errors.js';
+import { apiError } from '../output/errors.js';
 
 export function registerAiCommands(program: Command): void {
   const aiCmd = program
@@ -30,7 +30,7 @@ export function registerAiCommands(program: Command): void {
       const response = await aiGenerateFromSchema(prompt, schemas);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;
@@ -52,7 +52,7 @@ export function registerAiCommands(program: Command): void {
       const response = await aiFix(options.sql, options.error);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const fixData = response.data as Record<string, unknown> | undefined;
@@ -78,7 +78,7 @@ export function registerAiCommands(program: Command): void {
       const response = await aiPivot(pivotConfig);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const pivotData = response.data as Record<string, unknown> | undefined;
@@ -99,7 +99,7 @@ export function registerAiCommands(program: Command): void {
       const response = await aiMagicEdit(options.prompt, options.sql);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const editData = response.data as Record<string, unknown> | undefined;

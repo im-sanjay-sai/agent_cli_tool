@@ -15,7 +15,7 @@ import { VirtualTableCreateInputSchema } from '../models/index.js';
 import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
-import { invalidInput, fromZodError, networkError } from '../output/errors.js';
+import { invalidInput, fromZodError, networkError, apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 
 /**
@@ -53,7 +53,7 @@ export function registerVirtualTableCommands(program: Command): void {
       const response = await listVirtualTablesRemote();
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const data = response.data as Record<string, unknown> | undefined;
@@ -90,7 +90,7 @@ export function registerVirtualTableCommands(program: Command): void {
       const response = await fetchVirtualTable(id, meta?.viewQuery, meta?.name);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       if (!response.data) {
@@ -148,7 +148,7 @@ export function registerVirtualTableCommands(program: Command): void {
       );
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successCreated(response.data, { source: 'remote', warnings: vtWarnings }));
@@ -182,7 +182,7 @@ export function registerVirtualTableCommands(program: Command): void {
       const response = await updateVirtualTableRemote(id, updates);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successUpdated(response.data, { source: 'remote' }));
@@ -210,7 +210,7 @@ export function registerVirtualTableCommands(program: Command): void {
       const response = await deleteVirtualTableRemote(id);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(successDeleted(id, 'virtual_table', { source: 'remote' }));
@@ -231,7 +231,7 @@ export function registerVirtualTableCommands(program: Command): void {
       const response = await testVirtualTable(vtName);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       output(success({
@@ -255,7 +255,7 @@ export function registerVirtualTableCommands(program: Command): void {
       const response = await fetchVirtualTable(id, meta?.viewQuery, meta?.name);
       
       if (response.error) {
-        throw networkError(response.error);
+        throw apiError(response.error);
       }
       
       const vtData = response.data as Record<string, unknown> | undefined;
