@@ -135,13 +135,15 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
 // ============= Task-specific API methods =============
 
 // Dashboard tasks
-export async function fetchDashboards(tenants?: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'dashboards', metadata: { tenants } });
+// tenants injected globally by quillFetch
+export async function fetchDashboards(): Promise<QuillResponse> {
+  return quillFetch({ task: 'dashboards', metadata: {} });
 }
 
 // Frontend uses 'name' (dashboard name) to fetch, not an ID
-export async function fetchDashboard(dashboardName: string, tenants?: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'dashboard', metadata: { name: dashboardName, useNewNodeSql: true, tenants } });
+// tenants injected globally by quillFetch
+export async function fetchDashboard(dashboardName: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'dashboard', metadata: { name: dashboardName, useNewNodeSql: true } });
 }
 
 // Frontend uses 'name' for the dashboard, with 'newDashboardName' for renames
@@ -167,8 +169,9 @@ export async function setSectionOrder(dashboardName: string, sectionOrder: unkno
 }
 
 // Report tasks
-export async function fetchReport(reportId: string, filters?: unknown, tenants?: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'report', metadata: { reportId, dashboardItemId: reportId, filters, tenants } });
+// tenants injected globally by quillFetch
+export async function fetchReport(reportId: string, filters?: unknown): Promise<QuillResponse> {
+  return quillFetch({ task: 'report', metadata: { reportId, dashboardItemId: reportId, filters } });
 }
 
 export async function fetchReportInfo(reportId: string): Promise<QuillResponse> {
@@ -176,6 +179,7 @@ export async function fetchReportInfo(reportId: string): Promise<QuillResponse> 
 }
 
 // Paginated/sorted report fetch (frontend uses 'item' task)
+// Frontend sends both reportId AND dashboardItemId
 export async function fetchReportItem(
   reportId: string,
   options?: { page?: number; sort?: { field: string; direction: string }; rowsOnly?: boolean; rowCountOnly?: boolean }
@@ -183,8 +187,8 @@ export async function fetchReportItem(
   return quillFetch({
     task: 'item',
     metadata: {
+      reportId,
       dashboardItemId: reportId,
-      forcePagination: true,
       additionalProcessing: {
         page: options?.page ? { currentPage: options.page, rowsPerPage: 100 } : undefined,
         sort: options?.sort,
@@ -279,14 +283,14 @@ export async function buildFromAst(ast: unknown): Promise<QuillResponse> {
 }
 
 // Schema tasks
-export async function fetchSchema(tenants?: unknown): Promise<QuillResponse> {
+// tenants injected globally by quillFetch
+export async function fetchSchema(): Promise<QuillResponse> {
   return quillFetch({
     task: 'schema',
     metadata: {
       removeCustomerField: true,
       removeCustomFieldRef: true,
       useNewCustomFields: true,
-      tenants,
     },
   });
 }
@@ -321,8 +325,16 @@ export async function setSchemas(schemaNames: string[]): Promise<QuillResponse> 
 }
 
 // AI tasks -- frontend uses 'initialQuestion' not 'prompt' for most AI tasks
-export async function aiQuery(prompt: string, schemaNames?: string[]): Promise<QuillResponse> {
-  return quillFetch({ task: 'quillai', metadata: { initialQuestion: prompt, schemaNames } });
+// Frontend also sends existingQuery for context when editing
+export async function aiQuery(prompt: string, schemaNames?: string[], existingQuery?: string): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'quillai',
+    metadata: {
+      initialQuestion: prompt,
+      schemaNames,
+      ...(existingQuery ? { existingQuery } : {}),
+    },
+  });
 }
 
 export async function aiGenerateFromSchema(prompt: string, schemaNames?: string[]): Promise<QuillResponse> {
@@ -334,8 +346,16 @@ export async function aiSqlGenerator(initialQuestion: string, tableSchemas?: unk
 }
 
 // Frontend uses 'brokenQuery' and 'errorMessage' not 'query' and 'error'
-export async function aiFix(brokenSql: string, errorMessage: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'plsfix', metadata: { brokenQuery: brokenSql, errorMessage } });
+// Frontend also sends initialQuestion (original user prompt) for better AI context
+export async function aiFix(brokenSql: string, errorMessage: string, originalPrompt?: string): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'plsfix',
+    metadata: {
+      brokenQuery: brokenSql,
+      errorMessage,
+      ...(originalPrompt ? { initialQuestion: originalPrompt } : {}),
+    },
+  });
 }
 
 // Frontend sends structured pivot data, not a text prompt
@@ -353,9 +373,9 @@ export async function aiMagicEdit(prompt: string, existingQuery: string): Promis
   return quillFetch({ task: 'magic-edit', metadata: { initialQuestion: prompt, sqlQuery: existingQuery } });
 }
 
-// Tenant tasks -- frontend requires tenants and dashboardName
-export async function fetchTenantMapping(dashboardName?: string, tenants?: unknown): Promise<QuillResponse> {
-  return quillFetch({ task: 'tenant-mapping', metadata: { dashboardName, tenants } });
+// Tenant tasks -- tenants injected globally by quillFetch
+export async function fetchTenantMapping(dashboardName?: string): Promise<QuillResponse> {
+  return quillFetch({ task: 'tenant-mapping', metadata: { dashboardName } });
 }
 
 export async function fetchViewerTenants(dashboardName?: string): Promise<QuillResponse> {
@@ -423,7 +443,7 @@ export async function resolveClientId(nameOrId: string): Promise<{
 }
 
 export async function fetchClients(): Promise<QuillResponse> {
-  return quillFetch({ task: 'clients' });
+  return quillFetch({ task: 'clients', metadata: { fetchDefaultDashboard: true } });
 }
 
 // Frontend wraps updates in a 'client' key: { clientId, client: { ...updates } }
