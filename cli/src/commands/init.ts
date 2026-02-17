@@ -86,7 +86,7 @@ export function registerInitCommand(program: Command): void {
               status: connected ? 'success' : 'failed',
               message: connected
                 ? 'Database connection verified'
-                : `Connection test failed: ${(connData?.message as string) || response.error || 'Unknown error'}`,
+                : `Connection test failed: ${(connData?.message as string) || response.error || 'Connection check returned no details'}`,
             });
             verbose(`Step 3: Connection test ${connected ? 'passed' : 'failed'}`);
           } catch (error) {

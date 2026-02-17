@@ -127,7 +127,7 @@ export function registerSchemaCommands(program: Command): void {
       
       const connData = response.data as Record<string, unknown> | undefined;
       const connected = connData?.success === true;
-      const message = (connData?.message as string) || response.error || 'Unknown result';
+      const message = (connData?.message as string) || response.error || (connData?.success ? 'Connection successful' : 'Unknown result');
 
       if (!connected) {
         throw networkError(`Database connection failed: ${message}`);
