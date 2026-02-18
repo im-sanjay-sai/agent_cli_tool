@@ -383,6 +383,16 @@ export async function aiMagicEdit(prompt: string, existingQuery: string): Promis
   return quillFetch({ task: 'magic-edit', metadata: { initialQuestion: prompt, sqlQuery: existingQuery } });
 }
 
+export async function aiSearchDocs(searchQuery: string, k?: number): Promise<QuillResponse> {
+  return quillFetch({
+    task: 'search-docs',
+    metadata: {
+      searchQuery,
+      ...(typeof k === 'number' ? { k } : {}),
+    },
+  });
+}
+
 // Tenant tasks -- tenants injected globally by quillFetch
 export async function fetchTenantMapping(dashboardName?: string): Promise<QuillResponse> {
   return quillFetch({ task: 'tenant-mapping', metadata: { dashboardName } });

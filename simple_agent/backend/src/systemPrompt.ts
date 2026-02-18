@@ -191,6 +191,7 @@ quill query build --ast ast.json         # Build SQL from AST
 quill query explain --sql "SELECT ..."   # Execution plan
 
 ### AI
+quill ai search-docs --query "text" --k 10   # Search docs via backend /search-docs 
 quill ai query "natural language"        # Generate SQL
 quill ai fix --sql "broken" --error "msg"  # Fix SQL
 quill ai edit --sql "SELECT ..." --prompt "change"  # Edit SQL

@@ -6,10 +6,11 @@ import {
   aiFix,
   aiPivot,
   aiMagicEdit,
+  aiSearchDocs,
 } from '../core/client.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
-import { apiError } from '../output/errors.js';
+import { apiError, invalidInput } from '../output/errors.js';
 
 export function registerAiCommands(program: Command): void {
   const aiCmd = program
@@ -107,6 +108,37 @@ export function registerAiCommands(program: Command): void {
         originalSql: options.sql,
         prompt: options.prompt,
         editedSql: editData?.message || editData?.sql,
+      }, { source: 'remote' }));
+    }));
+
+  aiCmd
+    .command('search-docs')
+    .description('Semantic search of documents about quill commands if unsure about anything')
+    .requiredOption('--query <text>', 'Search query string')
+    .option('--k <number>', 'Top K results to return (default: 10)')
+    .action(withErrorHandling(async (options) => {
+      await requireAuth();
+
+      let k: number | undefined;
+      if (options.k !== undefined) {
+        const parsed = Number.parseInt(options.k, 10);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          throw invalidInput('--k must be a positive integer');
+        }
+        k = parsed;
+      }
+
+      const response = await aiSearchDocs(options.query, k);
+
+      if (response.error) {
+        throw apiError(response.error);
+      }
+
+      const data = response.data as Record<string, unknown> | undefined;
+      output(success({
+        searchQuery: options.query,
+        k: k ?? 10,
+        result: data?.metadata ?? data,
       }, { source: 'remote' }));
     }));
 }
