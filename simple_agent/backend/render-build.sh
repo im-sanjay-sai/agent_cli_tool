@@ -24,9 +24,8 @@ QUILL_ENDPOINT="http://localhost:${PORT:-3001}/api/quill"
 mkdir -p .quill
 cat > .quill/config.json << EOFCONFIG
 {
-  "clientId": "${QUILL_CLIENT_ID:-65809ec85375e445ddc1990e}",
-  "queryEndpoint": "${QUILL_ENDPOINT}",
-  "currentEnv": "staging"
+  "clientId": "${QUILL_CLIENT_ID}",
+  "queryEndpoint": "${QUILL_ENDPOINT}"
 }
 EOFCONFIG
 echo "✓ .quill/config.json → ${QUILL_ENDPOINT}"

@@ -200,7 +200,8 @@ export async function setProjectConfigValue<K extends keyof ProjectConfig>(
 }
 
 /**
- * Initialize project config directory
+ * Initialize project config directory.
+ * Merges with existing project config so only provided options overwrite (env or flags can seed without wiping others).
  */
 export async function initProjectStore(
   cwd: string = process.cwd(),
@@ -212,11 +213,20 @@ export async function initProjectStore(
   const storeDir = getProjectStoreDir(cwd);
   await ensureDir(storeDir);
 
+  let existing: ProjectConfig = {};
+  try {
+    const read = await readJsonFile(getProjectConfigFile(cwd), ProjectConfigSchema);
+    if (read) existing = read as ProjectConfig;
+  } catch {
+    // No existing file
+  }
+
   const config: ProjectConfig = {
-    clientId: options?.clientId,
-    queryEndpoint: options?.queryEndpoint,
+    ...existing,
+    ...(options?.clientId !== undefined && { clientId: options.clientId }),
+    ...(options?.queryEndpoint !== undefined && { queryEndpoint: options.queryEndpoint }),
   };
-  
+
   await writeJsonFile(getProjectConfigFile(cwd), config);
 }
 
@@ -242,11 +252,11 @@ export async function getMergedConfig(cwd: string = process.cwd()): Promise<{
 
   const opts = getGlobalOptions();
 
-  // Env vars take precedence over config files (for CI/CD and agent use)
+  // Project config (file) wins over env so env switch persists; env is fallback when no project or no value in file
   return {
     token: opts.token || process.env.QUILL_API_TOKEN || globalConfig.token,
-    clientId: process.env.QUILL_CLIENT_ID || projectConfig?.clientId,
-    queryEndpoint: process.env.QUILL_QUERY_ENDPOINT || projectConfig?.queryEndpoint || globalConfig.queryEndpoint,
+    clientId: projectConfig?.clientId ?? process.env.QUILL_CLIENT_ID,
+    queryEndpoint: projectConfig?.queryEndpoint ?? process.env.QUILL_QUERY_ENDPOINT ?? globalConfig.queryEndpoint,
     queryHeaders: projectConfig?.queryHeaders,
     withCredentials: projectConfig?.withCredentials,
     serverUrl: process.env.QUILL_SERVER_URL || globalConfig.serverUrl,

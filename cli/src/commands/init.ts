@@ -45,17 +45,19 @@ export function registerInitCommand(program: Command): void {
         }
       }
 
-      // Step 2: Initialize project config
+      // Step 2: Initialize project config (seed from --client-id/--query-endpoint or from env)
       const initialized = await isProjectInitialized();
-      if (!initialized || options.clientId || options.queryEndpoint) {
+      const clientId = options.clientId || process.env.QUILL_CLIENT_ID;
+      const queryEndpoint = options.queryEndpoint || process.env.QUILL_QUERY_ENDPOINT;
+      if (!initialized || options.clientId || options.queryEndpoint || clientId || queryEndpoint) {
         await initProjectStore(process.cwd(), {
-          clientId: options.clientId,
-          queryEndpoint: options.queryEndpoint,
+          clientId,
+          queryEndpoint,
         });
         steps.push({
           step: 'project',
           status: 'success',
-          message: `Project initialized${options.clientId ? ` with clientId: ${options.clientId}` : ''}`,
+          message: `Project initialized${clientId ? ` with clientId: ${clientId}` : ''}`,
         });
         verbose('Step 2: Project config initialized');
       } else {
