@@ -20,6 +20,14 @@ import { Request, Response } from 'express';
 // Dynamic import because @quillsql/node is CJS-only
 let Quill: any = null;
 
+  function normalizeDatabaseType(value?: unknown): string {
+  if (typeof value !== 'string') return 'postgresql';
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return 'postgresql';
+  if (normalized === 'postgres' || normalized === 'postgresql') return 'postgresql';
+  return normalized;
+}
+
 async function loadQuill() {
   if (!Quill) {
     const mod = await import('@quillsql/node');
@@ -71,7 +79,7 @@ async function getQuill() {
 
     const QuillClass = await loadQuill();
     const dbConfig = getDatabaseConfig();
-    const databaseType = process.env.QUILL_DATABASE_TYPE || 'postgres';
+    const databaseType = normalizeDatabaseType(process.env.QUILL_DATABASE_TYPE);
 
     quillInstance = new QuillClass({
       privateKey,
@@ -99,11 +107,16 @@ export async function quillProxyHandler(req: Request, res: Response) {
       return;
     }
 
-    console.log(`[quill-proxy] task=${metadata.task}`);
+    const normalizedMetadata = {
+      ...metadata,
+      databaseType: normalizeDatabaseType(metadata.databaseType),
+    };
+
+    console.log(`[quill-proxy] task=${normalizedMetadata.task}`);
 
     const result = await quill.query({
       tenants: ['QUILL_ALL_TENANTS'],
-      metadata,
+      metadata: normalizedMetadata,
       adminEnabled: true,
     });
 

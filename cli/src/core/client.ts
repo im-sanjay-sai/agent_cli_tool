@@ -7,6 +7,14 @@ import { verbose } from '../output/formatter.js';
 const DEFAULT_QUILL_SERVER = 'https://api.quillsql.com';
 const QUILL_QUERY_ENDPOINT = '/v1/sdk';
 
+function normalizeDatabaseType(value?: string): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === 'postgres' || normalized === 'postgresql') return 'postgresql';
+  return normalized;
+}
+
 export interface QuillFetchOptions {
   task: string;
   metadata?: Record<string, unknown>;
@@ -63,7 +71,7 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
           clientId: config.clientId,
           adminMode: true,
           tenants: ['QUILL_ALL_TENANTS'],
-          databaseType: process.env.QUILL_DATABASE_TYPE || undefined,
+          databaseType: normalizeDatabaseType(process.env.QUILL_DATABASE_TYPE),
           useNewNodeSql: true,
           ...options.metadata,
         },
@@ -317,7 +325,7 @@ export async function fetchSchemaNames(): Promise<QuillResponse> {
   return quillFetch({
     task: 'get-schema-names',
     metadata: {
-      databaseType: process.env.QUILL_DATABASE_TYPE || 'postgres',
+      databaseType: normalizeDatabaseType(process.env.QUILL_DATABASE_TYPE) || 'postgresql',
     },
   });
 }
