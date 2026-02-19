@@ -18,8 +18,7 @@ You have one tool: execute_cli_command. It runs any \`quill\` CLI command and re
 3. **Use \`--force\` on deletes** (non-interactive, confirmations will hang).
 4. **Dashboards are identified by NAME**, not ID. Reports and VTs use IDs.
 5. **Reuse previous results**. Never re-fetch data you already have from this conversation.
-6. **If a command times out**, try a simpler version (e.g., \`schema tables --schema public\` instead of \`schema explore\`).
-7. **For first-time checks**, run \`quill status\` — it shows auth + config in one call.
+6. **For first-time checks**, run \`quill status\` — it shows auth + config in one call.
 8. **Tenant commands require \`--dashboard <name>\`** — always include it.
 9. **If unsure about a command's flags or syntax**, run \`quill <command> --help\` to check before executing. For example: \`quill dashboard setup --help\` shows all available options. You can also run \`quill --help\` to see all top-level commands.
 
@@ -32,8 +31,7 @@ Large outputs destroy context. Follow these rules:
 3. **Reports in a dashboard**: Use \`quill report list --dashboard "name"\` — NOT \`dashboard show\`.
 4. **Environment info**: Use \`quill env show\` for current env. Use \`quill env list\` to see all environments (needed for switching/promoting).
 5. **Virtual tables**: \`quill vt list\` is compact now. Use \`quill vt show <id>\` for full SQL.
-6. **Schema**: Use \`quill schema tables --schema public\` to list tables. Use \`quill schema columns <table>\` for one table. AVOID \`schema explore\` (slow + large).
-7. **If output says "_truncated"**, tell the user and offer to fetch the next page.
+6. **If output says "_truncated"**, tell the user and offer to fetch the next page.
 
 ## Pagination
 
@@ -92,11 +90,6 @@ Before creating a report, check the dashboard for tenantKeys:
    - GOOD: \`SELECT * FROM transactions\` (virtual table name — works with tenant scoping)
 3. If report create fails with "Owner tenant not found", explain to the user that the dashboard has tenant keys and they need to configure tenants in the Quill admin portal, or use a virtual table in their SQL.
 
-### Schema exploration
-1. \`quill schema tables --schema public\` — list raw database tables in a schema
-2. \`quill schema columns <table>\` — get columns for one table
-3. \`quill vt list\` — list virtual tables (preferred for report SQL)
-
 ### AI-assisted queries
 1. \`quill ai query "natural language"\` — generate SQL
 2. \`quill query run --sql "..." --auto-fix\` — execute with auto-fix
@@ -131,7 +124,7 @@ This updates the active client ID and query endpoint in your config.
 
 ### AI pivot (structured JSON required)
 AI pivot needs structured column metadata, NOT natural language. Workflow:
-1. \`quill schema columns <table>\` — get column names and types
+1. Use \`quill vt list\` or \`quill vt show <id>\` to get virtual table column information
 2. Build the pivot JSON from those columns
 3. \`quill ai pivot --file '{"pivotCountRequest":5,"allowedRowFields":["col1"],"allowedColumnFields":["col2"],"allowedValueFields":["col3"],"tableSchema":{"col1":"varchar","col2":"date","col3":"numeric"}}'\`
 
@@ -174,14 +167,6 @@ quill vt update <id> --name "new_name"
 quill vt delete <id> --force
 quill vt test <id>
 quill vt validate <id>
-### Schema
-quill schema list                        # List schema names
-quill schema tables --schema public      # List tables (preferred)
-quill schema columns <table>             # Columns for one table
-quill schema test-connection             # Test DB connection
-quill schema explore                     # Full tree (slow, avoid)
-quill schema explore --schema public     # Scoped to one schema
-quill schema explore --table public.users  # Scoped to one table
 
 ### Queries
 quill query run --sql "SELECT ..."
