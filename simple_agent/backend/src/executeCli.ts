@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } from 'fs';
 import { resolve, join } from 'path';
 import { tmpdir } from 'os';
+import { diffSession, discardSession, getSession, promoteSession } from './sessionService';
 
 const TIMEOUT_MS = 120_000; // 2 min — the proxy chain (CLI → /api/quill → DB) can be slow
 
@@ -10,6 +11,11 @@ const BACKEND_ROOT = resolve(__dirname, '..');
 
 // Flags that accept a file path -- if the next arg is inline JSON, write to temp file
 const FILE_FLAGS = ['--file', '--ast', '--filters'];
+
+export interface ExecuteCliContext {
+  sessionId?: string;
+  workingDir?: string;
+}
 
 /**
  * Safely execute a Quill CLI command.
@@ -20,7 +26,10 @@ const FILE_FLAGS = ['--file', '--ast', '--filters'];
  *  - Auto-writes inline JSON to temp files for --file/--ast/--filters flags
  *  - Cleans up temp files after execution
  */
-export async function executeCli(args: { command: string }): Promise<string> {
+export async function executeCli(
+  args: { command: string },
+  context?: ExecuteCliContext,
+): Promise<string> {
   const { command } = args;
   const trimmed = command.trim();
 
@@ -37,6 +46,10 @@ export async function executeCli(args: { command: string }): Promise<string> {
 
   // Split command into binary + args safely (no shell involved)
   const parts = parseCommand(trimmed);
+  const sessionCommandResult = await maybeRunSessionCommand(parts, context);
+  if (sessionCommandResult) {
+    return sessionCommandResult;
+  }
   const binary = parts[0]; // "quill"
   const cliArgs = parts.slice(1);
 
@@ -50,7 +63,7 @@ export async function executeCli(args: { command: string }): Promise<string> {
       {
         timeout: TIMEOUT_MS,
         encoding: 'utf-8',
-        cwd: BACKEND_ROOT, // So the CLI finds .quill/config.json
+        cwd: context?.workingDir || BACKEND_ROOT, // Session-safe cwd if provided
         env: {
           ...process.env,
           CI: 'true', // Force non-interactive mode
@@ -254,4 +267,81 @@ function parseCommand(cmd: string): string[] {
   }
 
   return args;
+}
+
+async function maybeRunSessionCommand(
+  parts: string[],
+  context?: ExecuteCliContext,
+): Promise<string | null> {
+  if (!(parts[0] === 'quill' && parts[1] === 'session')) {
+    return null;
+  }
+
+  const action = parts[2];
+  const sessionId = context?.sessionId;
+  if (!sessionId) {
+    return JSON.stringify({
+      ok: false,
+      error: {
+        code: 'INVALID_INPUT',
+        message: 'Session ID is required for session commands.',
+      },
+    });
+  }
+
+  if (action === 'info' || action === 'show') {
+    const session = getSession(sessionId);
+    if (!session) {
+      return JSON.stringify({
+        ok: false,
+        error: { code: 'NOT_FOUND', message: `Session not found: ${sessionId}` },
+      });
+    }
+    return JSON.stringify({ ok: true, data: { session } });
+  }
+
+  if (action === 'diff') {
+    let compareToClientId: string | undefined;
+    const toIndex = parts.findIndex((p) => p === '--to');
+    if (toIndex > -1 && parts[toIndex + 1]) {
+      compareToClientId = parts[toIndex + 1];
+    }
+    const result = await diffSession(sessionId, compareToClientId);
+    const metadata = (result as { metadata?: unknown }).metadata ?? result;
+    return JSON.stringify({ ok: true, data: metadata });
+  }
+
+  if (action === 'promote') {
+    const toIndex = parts.findIndex((p) => p === '--to');
+    const targetClientId = toIndex > -1 ? parts[toIndex + 1] : '';
+    if (!targetClientId) {
+      return JSON.stringify({
+        ok: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'Usage: quill session promote --to <targetClientId>',
+        },
+      });
+    }
+    const result = await promoteSession(sessionId, targetClientId, {
+      addMissingTables: parts.includes('--auto-resolve'),
+      skipWarning: parts.includes('--skip-warning'),
+      autoDiscard: !parts.includes('--keep-sandbox'),
+    });
+    return JSON.stringify({ ok: true, data: result });
+  }
+
+  if (action === 'discard') {
+    const result = await discardSession(sessionId);
+    return JSON.stringify({ ok: true, data: result });
+  }
+
+  return JSON.stringify({
+    ok: false,
+    error: {
+      code: 'INVALID_INPUT',
+      message:
+        'Unknown session command. Supported: quill session info | diff [--to <clientId>] | promote --to <clientId> [--auto-resolve] [--skip-warning] [--keep-sandbox] | discard',
+    },
+  });
 }

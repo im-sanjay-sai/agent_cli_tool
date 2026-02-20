@@ -19,13 +19,73 @@ import { Request, Response } from 'express';
 
 // Dynamic import because @quillsql/node is CJS-only
 let Quill: any = null;
+const HYBRID_DIRECT_TASKS = new Set([
+  'clone-environment',
+  'promote-environment',
+  'diff-environment',
+]);
 
-  function normalizeDatabaseType(value?: unknown): string {
+function getHostedMetadataBaseUrl(): string {
+  const base =
+    process.env.QUILL_METADATA_SERVER_URL ||
+    process.env.QUILL_SERVER_SDK_URL ||
+    '';
+  return base.trim().replace(/\/$/, '');
+}
+
+function normalizeDatabaseType(value?: unknown): string {
   if (typeof value !== 'string') return 'postgresql';
   const normalized = value.trim().toLowerCase();
   if (!normalized) return 'postgresql';
   if (normalized === 'postgres' || normalized === 'postgresql') return 'postgresql';
   return normalized;
+}
+
+export async function callHostedSdkTask(
+  task: string,
+  payload: Record<string, unknown>,
+): Promise<unknown> {
+  const baseUrl = getHostedMetadataBaseUrl();
+  if (!baseUrl) {
+    throw new Error(
+      'QUILL_METADATA_SERVER_URL is not set. Cannot route hosted SDK tasks.',
+    );
+  }
+  const privateKey = process.env.QUILL_PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error('QUILL_PRIVATE_KEY is not set.');
+  }
+
+  const response = await fetch(`${baseUrl}/sdk/${task}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${privateKey}`,
+    },
+    body: JSON.stringify({
+      ...payload,
+      adminEnabled:
+        payload.adminEnabled === undefined ? true : payload.adminEnabled,
+    }),
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const body = contentType.includes('application/json')
+    ? await response.json()
+    : await response.text();
+
+  if (!response.ok) {
+    if (typeof body === 'string') {
+      throw new Error(
+        `Hosted SDK task ${task} failed: ${response.status} ${body}`,
+      );
+    }
+    const errorMessage =
+      (body as Record<string, unknown>)?.error ||
+      `${response.status} ${response.statusText}`;
+    throw new Error(String(errorMessage));
+  }
+  return body;
 }
 
 async function loadQuill() {
@@ -99,7 +159,6 @@ async function getQuill() {
  */
 export async function quillProxyHandler(req: Request, res: Response) {
   try {
-    const quill = await getQuill();
     const { metadata } = req.body;
 
     if (!metadata) {
@@ -113,6 +172,31 @@ export async function quillProxyHandler(req: Request, res: Response) {
     };
 
     console.log(`[quill-proxy] task=${normalizedMetadata.task}`);
+
+    if (HYBRID_DIRECT_TASKS.has(String(normalizedMetadata.task))) {
+      const result = await callHostedSdkTask(
+        String(normalizedMetadata.task),
+        normalizedMetadata as Record<string, unknown>,
+      );
+      const body = result as Record<string, unknown>;
+      // Keep response shape CLI-friendly (quillFetch expects data/error-ish fields)
+      if (
+        body &&
+        !('status' in body) &&
+        !('data' in body) &&
+        ('metadata' in body || 'error' in body)
+      ) {
+        res.json({
+          status: body.error ? 'error' : 'success',
+          ...(body.error ? { error: body.error } : { data: body.metadata ?? body }),
+        });
+        return;
+      }
+      res.json(body);
+      return;
+    }
+
+    const quill = await getQuill();
 
     const result = await quill.query({
       tenants: ['QUILL_ALL_TENANTS'],

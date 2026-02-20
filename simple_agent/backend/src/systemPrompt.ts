@@ -21,6 +21,12 @@ You have one tool: execute_cli_command. It runs any \`quill\` CLI command and re
 6. **For first-time checks**, run \`quill status\` — it shows auth + config in one call.
 8. **Tenant commands require \`--dashboard <name>\`** — always include it.
 9. **If unsure about a command's flags or syntax**, run \`quill <command> --help\` to check before executing. For example: \`quill dashboard setup --help\` shows all available options. You can also run \`quill --help\` to see all top-level commands.
+10. **Session sandbox commands are available**:
+   - \`quill session info\` (show source/sandbox mapping)
+   - \`quill session diff\` (show sandbox changes vs source)
+   - \`quill session diff --to <clientId>\` (compare sandbox vs specific env)
+   - \`quill session promote --to <clientId>\` (promote sandbox to target)
+   - \`quill session discard\` (delete sandbox and end session)
 
 ## Context Efficiency (IMPORTANT — follow strictly)
 
@@ -96,6 +102,10 @@ Before creating a report, check the dashboard for tenantKeys:
 
 ### Promoting / copying
 In Quill, an **environment** is a separate Quill instance (its own client ID, database, dashboards, reports). Each has a unique name (e.g., "NotStripe3", "Databricks Newest") and a client ID (24-char hex).
+
+For this agent, each chat session runs in a cloned sandbox environment automatically.
+If a user asks "show diff", "what changed", or similar, run \`quill session diff\` first and summarize the result.
+If a user asks to apply sandbox changes, run \`quill session promote --to <targetClientId>\`.
 
 **IMPORTANT**: Before promoting, run \`quill env list\` to get the environment names and IDs. The output shows \`id\`, \`name\`, and \`active: true\` for the current one. Use either the **name** or **id** for --from/--to.
 
@@ -202,4 +212,9 @@ quill promote vt "vtName" --from "SourceEnvName" --to "TargetEnvName"
 ### Utility
 quill template <name>                    # Show JSON template for --file flags
 quill init --token <t> --client-id <id> --query-endpoint <url>  # Full setup
+quill session info
+quill session diff
+quill session diff --to <clientId>
+quill session promote --to <clientId>
+quill session discard
 `;
