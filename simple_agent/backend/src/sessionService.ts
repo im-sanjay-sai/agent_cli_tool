@@ -149,17 +149,31 @@ export async function ensureSession(
   const cloneResponse = (await callHostedSdkTask('clone-environment', {
     fromClientId: source,
     skipWarning: true,
-    addMissingTables: false,
+    addMissingTables: true,
     adminEnabled: true,
   })) as { metadata?: Record<string, unknown> };
 
   const metadata = (cloneResponse.metadata || {}) as {
     error?: string;
+    success?: boolean;
+    tables?: { errors?: unknown[] };
+    dashboards?: { errors?: unknown[] };
     newClientId?: string;
     newClientName?: string;
   };
   if (metadata.error) {
     throw new Error(metadata.error);
+  }
+  if (metadata.success === false) {
+    const tableErrors = Array.isArray(metadata.tables?.errors)
+      ? metadata.tables.errors.length
+      : 0;
+    const dashboardErrors = Array.isArray(metadata.dashboards?.errors)
+      ? metadata.dashboards.errors.length
+      : 0;
+    throw new Error(
+      `Clone created a sandbox but failed to copy all resources (tableErrors=${tableErrors}, dashboardErrors=${dashboardErrors}).`,
+    );
   }
 
   const sandboxClientId = metadata.newClientId;
