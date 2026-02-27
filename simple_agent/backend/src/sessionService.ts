@@ -251,9 +251,39 @@ export async function promoteSession(
     fromClientId: session.sandboxClientId,
     toClientId: targetClientId,
     addMissingTables: options?.addMissingTables ?? false,
-    skipWarning: options?.skipWarning ?? false,
+    skipWarning: true,
     adminEnabled: true,
   });
+
+  const body = (response as Record<string, unknown>) || {};
+  const metadata =
+    (body.metadata as Record<string, unknown> | undefined) || body;
+  const responseError = metadata.error;
+  const responseSuccess = metadata.success;
+  const tableErrors = Array.isArray(
+    (metadata.tables as Record<string, unknown> | undefined)?.errors,
+  )
+    ? ((metadata.tables as Record<string, unknown>).errors as unknown[]).length
+    : 0;
+  const dashboardErrors = Array.isArray(
+    (metadata.dashboards as Record<string, unknown> | undefined)?.errors,
+  )
+    ? ((metadata.dashboards as Record<string, unknown>).errors as unknown[])
+        .length
+    : 0;
+
+  if (responseError || responseSuccess === false) {
+    saveSessionRecord({
+      ...session,
+      status: 'active',
+      updatedAt: nowIso(),
+    });
+    const message =
+      typeof responseError === 'string' && responseError
+        ? responseError
+        : `Promote failed (tableErrors=${tableErrors}, dashboardErrors=${dashboardErrors}).`;
+    throw new Error(message);
+  }
 
   saveSessionRecord({
     ...session,

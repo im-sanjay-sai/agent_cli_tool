@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { CliError, ErrorResponse, fromUnknown } from './errors.js';
 import { SuccessResponse } from './success.js';
 import { getGlobalOptions } from '../core/config.js';
@@ -5,12 +6,25 @@ import { getGlobalOptions } from '../core/config.js';
 export type OutputResponse = SuccessResponse | ErrorResponse;
 
 /**
- * Format and output response to stdout (always JSON)
+ * A function that formats a response as a human-readable string.
+ * When provided and --raw is not set, output() will use this instead of JSON.
  */
-export function output(response: OutputResponse): void {
+export type HumanFormatter = (response: OutputResponse) => string;
+
+/**
+ * Format and output response to stdout.
+ * If a humanFormatter is provided and --raw is not set, outputs human-readable text.
+ * Otherwise, outputs JSON.
+ */
+export function output(response: OutputResponse, humanFormatter?: HumanFormatter): void {
   const opts = getGlobalOptions();
-  const jsonString = formatJson(response, opts.pretty);
-  console.log(jsonString);
+
+  if (opts.raw || !humanFormatter) {
+    const jsonString = formatJson(response, opts.pretty);
+    console.log(jsonString);
+  } else {
+    console.log(humanFormatter(response));
+  }
 }
 
 /**
@@ -24,11 +38,62 @@ export function formatJson(data: unknown, pretty?: boolean): string {
 }
 
 /**
- * Output error response and set exit code
+ * Format error for human-readable output
+ */
+function formatErrorHuman(cliError: CliError): string {
+  const lines: string[] = [];
+  lines.push(chalk.red(`Error: ${cliError.message}`));
+
+  if (cliError.details) {
+    const { issues, originalError, ...rest } = cliError.details;
+
+    // Zod validation issues (array of strings)
+    if (Array.isArray(issues)) {
+      lines.push('');
+      lines.push(chalk.dim('Details:'));
+      for (const issue of issues) {
+        lines.push(chalk.dim(`  - ${issue}`));
+      }
+    }
+
+    // Original error message (e.g., ENOENT path, network error)
+    if (typeof originalError === 'string') {
+      lines.push('');
+      lines.push(chalk.dim(`  ${originalError}`));
+    }
+
+    // Other details (e.g., status code, resource info)
+    for (const [key, value] of Object.entries(rest)) {
+      if (value !== undefined && value !== null && typeof value !== 'object') {
+        lines.push(chalk.dim(`  ${key}: ${value}`));
+      }
+    }
+  }
+
+  if (cliError.suggestions && cliError.suggestions.length > 0) {
+    lines.push('');
+    lines.push(chalk.yellow('Suggestions:'));
+    for (const suggestion of cliError.suggestions) {
+      lines.push(chalk.yellow(`  - ${suggestion}`));
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Output error response and set exit code.
+ * Uses human-readable format by default unless --raw is set.
  */
 export function outputError(error: CliError | Error | unknown): void {
   const cliError = error instanceof CliError ? error : fromUnknown(error);
-  output(cliError.toResponse());
+  const opts = getGlobalOptions();
+
+  if (opts.raw) {
+    output(cliError.toResponse());
+  } else {
+    console.error(formatErrorHuman(cliError));
+  }
   process.exitCode = 1;
 }
 
