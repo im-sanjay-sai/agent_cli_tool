@@ -38,8 +38,8 @@ async function getVtFromSchema(vtId: string): Promise<Record<string, unknown> | 
 
 export function registerVirtualTableCommands(program: Command): void {
   const vtCmd = program
-    .command('vt')
-    .alias('virtual-table')
+    .command('virtual-table')
+    .alias('vt')
     .description('Manage virtual tables');
 
   // List virtual tables
@@ -86,21 +86,28 @@ export function registerVirtualTableCommands(program: Command): void {
       requireValidId(id, 'virtual table');
       await requireAuth();
 
+      console.error('[debug:vt-show] running latest build — fetching schema...');
       // Fetch all tables from schema listing (same call vt list uses)
       const response = await listVirtualTablesRemote();
+
+      // Debug: dump raw response shape BEFORE error check
+      console.error('[debug:vt-show] response.error:', JSON.stringify(response.error));
+      console.error('[debug:vt-show] response.data type:', typeof response.data);
+      console.error('[debug:vt-show] response.data keys:', response.data && typeof response.data === 'object' ? Object.keys(response.data as Record<string, unknown>) : String(response.data));
+
       if (response.error) {
-        throw apiError(response.error);
+        const errMsg = typeof response.error === 'string'
+          ? response.error
+          : (response.error as Record<string, unknown>)?.message as string ?? JSON.stringify(response.error);
+        throw apiError(errMsg);
       }
 
       const data = response.data as Record<string, unknown> | undefined;
-      // Debug: print the top-level keys of the schema response
-      console.error('[debug] schema response keys:', data ? Object.keys(data) : 'data is falsy');
-
       const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
-      console.error('[debug] allTables count:', allTables.length);
+      console.error('[debug:vt-show] allTables count:', allTables.length);
 
       const vt = allTables.find(t => (t._id as string) === id || (t.id as string) === id);
-      console.error('[debug] found VT:', vt ? Object.keys(vt) : 'null');
+      console.error('[debug:vt-show] found VT:', vt ? Object.keys(vt).join(', ') : 'null');
 
       if (!vt) {
         throw apiError(`Virtual table '${id}' not found in schema (${allTables.length} tables available)`);
