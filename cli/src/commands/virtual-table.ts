@@ -3,7 +3,6 @@ import { Command } from 'commander';
 import { requireAuth } from '../core/auth.js';
 import {
   listVirtualTablesRemote,
-  fetchVirtualTable,
   createVirtualTableRemote,
   updateVirtualTableRemote,
   deleteVirtualTableRemote,
@@ -15,7 +14,7 @@ import { VirtualTableCreateInputSchema } from '../models/index.js';
 import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
-import { invalidInput, fromZodError, networkError, apiError } from '../output/errors.js';
+import { invalidInput, fromZodError, apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 import {
   formatVtList, formatVtShow, formatVtCreated,
@@ -24,20 +23,17 @@ import {
 } from '../output/vt-formatters.js';
 
 /**
- * Fetch VT metadata (name + viewQuery) from the schema list.
- * Needed because fetchVirtualTable (task 'view') requires preQueries + name.
+ * Fetch the full VT object from the schema list.
+ * The 'schema' task returns all table metadata (name, viewQuery, columns, etc.)
+ * which is what we need for show/validate. The 'view' task executes the query
+ * and returns rows — not useful for metadata display.
  */
-async function getVtMetadata(vtId: string): Promise<{ name: string; viewQuery: string } | null> {
+async function getVtFromSchema(vtId: string): Promise<Record<string, unknown> | null> {
   const response = await listVirtualTablesRemote();
   if (response.error) return null;
   const data = response.data as Record<string, unknown> | undefined;
   const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
-  const vt = allTables.find(t => (t._id as string) === vtId || (t.id as string) === vtId);
-  if (!vt) return null;
-  return {
-    name: (vt.name ?? vt.displayName) as string,
-    viewQuery: vt.viewQuery as string,
-  };
+  return (allTables.find(t => (t._id as string) === vtId || (t.id as string) === vtId) as Record<string, unknown>) ?? null;
 }
 
 export function registerVirtualTableCommands(program: Command): void {
@@ -89,20 +85,13 @@ export function registerVirtualTableCommands(program: Command): void {
     .action(withErrorHandling(async (id) => {
       requireValidId(id, 'virtual table');
       await requireAuth();
-      
-      // Fetch VT metadata first (name + viewQuery) -- the 'view' task needs preQueries
-      const meta = await getVtMetadata(id);
-      const response = await fetchVirtualTable(id, meta?.viewQuery, meta?.name);
-      
-      if (response.error) {
-        throw apiError(response.error);
+
+      const vt = await getVtFromSchema(id);
+      if (!vt) {
+        throw apiError(`Virtual table '${id}' not found`);
       }
-      
-      if (!response.data) {
-        throw networkError('No data returned for virtual table');
-      }
-      
-      output(success(response.data, { source: 'remote' }), formatVtShow);
+
+      output(success(vt, { source: 'remote' }), formatVtShow);
     }));
 
   // Create virtual table
@@ -231,8 +220,8 @@ export function registerVirtualTableCommands(program: Command): void {
       await requireAuth();
       
       // Backend expects table NAME, not ID. Resolve from metadata.
-      const meta = await getVtMetadata(id);
-      const vtName = meta?.name || id;
+      const vt = await getVtFromSchema(id);
+      const vtName = (vt?.name ?? vt?.displayName ?? id) as string;
       const response = await testVirtualTable(vtName);
       
       if (response.error) {
@@ -253,21 +242,12 @@ export function registerVirtualTableCommands(program: Command): void {
     .action(withErrorHandling(async (id) => {
       requireValidId(id, 'virtual table');
       await requireAuth();
-      
-      
-      // Fetch VT metadata first (name + viewQuery) -- the 'view' task needs preQueries
-      const meta = await getVtMetadata(id);
-      const response = await fetchVirtualTable(id, meta?.viewQuery, meta?.name);
-      
-      if (response.error) {
-        throw apiError(response.error);
+
+      const vt = await getVtFromSchema(id);
+      if (!vt) {
+        throw apiError(`Virtual table '${id}' not found`);
       }
-      
-      const vtData = response.data as Record<string, unknown> | undefined;
-      if (!vtData) {
-        throw networkError('No data returned for virtual table');
-      }
-      const result = await validateVirtualTable(vtData);
+      const result = await validateVirtualTable(vt);
       
       output(success({
         valid: result.valid,
