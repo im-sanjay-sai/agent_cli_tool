@@ -5,6 +5,7 @@ import { testConnection } from '../core/client.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { invalidInput } from '../output/errors.js';
+import { formatInit } from '../output/init-formatters.js';
 
 export function registerInitCommand(program: Command): void {
   program
@@ -118,6 +119,6 @@ export function registerInitCommand(program: Command): void {
       }, {
         source: 'local',
         warnings,
-      }));
+      }), formatInit);
     }));
 }

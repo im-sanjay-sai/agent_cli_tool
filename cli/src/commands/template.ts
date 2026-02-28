@@ -1,7 +1,8 @@
 import { Command } from 'commander';
-import { output } from '../output/formatter.js';
+import { output, outputError } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { invalidInput } from '../output/errors.js';
+import { formatTemplate } from '../output/template-formatters.js';
 
 /**
  * `quill template <command>` -- output example JSON for --file flags.
@@ -92,8 +93,7 @@ export function registerTemplateCommand(program: Command): void {
         const err = invalidInput(
           `Unknown template: ${name}. Available: ${Object.keys(templates).join(', ')}`
         );
-        output(err.toResponse());
-        process.exitCode = 1;
+        outputError(err);
         return;
       }
 
@@ -101,6 +101,6 @@ export function registerTemplateCommand(program: Command): void {
         template: name,
         description: template.description,
         example: template.example,
-      }, { source: 'local' }));
+      }, { source: 'local' }), formatTemplate);
     });
 }

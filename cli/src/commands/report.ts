@@ -18,6 +18,11 @@ import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { fromZodError, apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
+import {
+  formatReportList, formatReportShow, formatReportCreated,
+  formatReportUpdated, formatReportDeleted, formatReportRun,
+  formatReportValidate, formatDeletionCancelled,
+} from '../output/report-formatters.js';
 
 export function registerReportCommands(program: Command): void {
   const reportCmd = program
@@ -61,7 +66,7 @@ export function registerReportCommands(program: Command): void {
       const offset = parseInt(options.offset || '0', 10);
       const limit = parseInt(options.limit || '0', 10);
       const page = limit > 0 ? reports.slice(offset, offset + limit) : reports;
-      output(successList(page, { source: 'remote', total: reports.length }));
+      output(successList(page, { source: 'remote', total: reports.length }), formatReportList);
     }));
 
   // Show report
@@ -82,7 +87,7 @@ export function registerReportCommands(program: Command): void {
       // Frontend reads data.report from the response
       const rawData = response.data as Record<string, unknown> | undefined;
       const reportData = rawData?.report ?? rawData;
-      output(success(reportData, { source: 'remote' }));
+      output(success(reportData, { source: 'remote' }), formatReportShow);
     }));
 
   // Create report
@@ -140,8 +145,8 @@ export function registerReportCommands(program: Command): void {
       if (response.error) {
         throw apiError(response.error);
       }
-      
-      output(successCreated(response.data, { source: 'remote' }));
+
+      output(successCreated(response.data, { source: 'remote' }), formatReportCreated);
     }));
 
   // Update report
@@ -159,12 +164,12 @@ export function registerReportCommands(program: Command): void {
       const updates = JSON.parse(content);
       
       const response = await updateReportRemote(id, updates);
-      
+
       if (response.error) {
         throw apiError(response.error);
       }
-      
-      output(successUpdated(response.data, { source: 'remote' }));
+
+      output(successUpdated(response.data, { source: 'remote' }), formatReportUpdated);
     }));
 
   // Delete report
@@ -181,18 +186,18 @@ export function registerReportCommands(program: Command): void {
       if (!options.force) {
         const confirmed = await confirmDeletion('report', id);
         if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }));
+          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
           return;
         }
       }
       
       const response = await deleteReportRemote(id);
-      
+
       if (response.error) {
         throw apiError(response.error);
       }
-      
-      output(successDeleted(id, 'report', { source: 'remote' }));
+
+      output(successDeleted(id, 'report', { source: 'remote' }), formatReportDeleted);
     }));
 
   // Run report (execute query)
@@ -221,13 +226,13 @@ export function registerReportCommands(program: Command): void {
       const data = response.data as Record<string, unknown> | undefined;
       const queries = response.queries as Record<string, unknown> | undefined;
       const queryResults = (queries?.queryResults as Record<string, unknown>[] | undefined)?.[0];
-      
+
       output(success({
         reportId: id,
         rows: queryResults?.rows || data?.rows || [],
         fields: queryResults?.fields || data?.fields || [],
         rowCount: queryResults?.rowCount || data?.rowCount || 0,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatReportRun);
     }));
 
   // Validate report
@@ -249,11 +254,11 @@ export function registerReportCommands(program: Command): void {
       
       const reportData = response.data as Record<string, unknown>;
       const result = await validateReport(reportData);
-      
+
       output(success({
         valid: result.valid,
         errors: result.errors,
         warnings: result.warnings,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatReportValidate);
     }));
 }

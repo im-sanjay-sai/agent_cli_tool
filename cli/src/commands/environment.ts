@@ -17,6 +17,10 @@ import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successDeleted } from '../output/success.js';
 import { apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
+import {
+  formatEnvList, formatEnvShow, formatEnvUpdated,
+  formatEnvDeleted, formatEnvSwitched, formatDeletionCancelled,
+} from '../output/env-formatters.js';
 
 export function registerEnvironmentCommands(program: Command): void {
   const envCmd = program
@@ -58,7 +62,7 @@ export function registerEnvironmentCommands(program: Command): void {
           active: (c._id || c.clientId) === activeClientId,
         })),
         { source: 'remote', total }
-      ));
+      ), formatEnvList);
     }));
 
   // Show current environment details
@@ -82,7 +86,7 @@ export function registerEnvironmentCommands(program: Command): void {
         name: clientData?.name,
         databaseType: clientData?.databaseType,
         schemaNames: clientData?.schemaNames,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatEnvShow);
     }));
 
   // Update environment
@@ -109,7 +113,7 @@ export function registerEnvironmentCommands(program: Command): void {
         message: 'Environment updated',
         clientId: id,
         ...(updateData || {}),
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatEnvUpdated);
     }));
 
   // Delete environment
@@ -125,18 +129,18 @@ export function registerEnvironmentCommands(program: Command): void {
       if (!options.force) {
         const confirmed = await confirmDeletion('environment', id);
         if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }));
+          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
           return;
         }
       }
       
       const response = await deleteClient(id);
-      
+
       if (response.error) {
         throw apiError(response.error);
       }
-      
-      output(successDeleted(id, 'environment', { source: 'remote' }));
+
+      output(successDeleted(id, 'environment', { source: 'remote' }), formatEnvDeleted);
     }));
 
   // Switch environment -- accepts client name or ID
@@ -152,16 +156,16 @@ export function registerEnvironmentCommands(program: Command): void {
       
       // Update clientId in project config
       await setProjectConfigValue('clientId', resolved.clientId);
-      
+
       // If the resolved client has a queryEndpoint, update that too
       if (resolved.queryEndpoint) {
         await setProjectConfigValue('queryEndpoint', resolved.queryEndpoint);
       }
-      
+
       output(success({
         switched: true,
         clientId: resolved.clientId,
         name: resolved.name,
-      }));
+      }), formatEnvSwitched);
     }));
 }

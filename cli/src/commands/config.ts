@@ -10,6 +10,7 @@ import {
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { invalidInput, alreadyExists } from '../output/errors.js';
+import { formatConfigInit, formatConfigGet, formatConfigSet } from '../output/config-formatters.js';
 
 export function registerConfigCommands(program: Command): void {
   const configCmd = program
@@ -40,7 +41,7 @@ export function registerConfigCommands(program: Command): void {
         path: '.quill/',
         clientId: options.clientId,
         endpoint: options.endpoint,
-      }));
+      }), formatConfigInit);
     }));
 
   // Config get
@@ -72,12 +73,12 @@ export function registerConfigCommands(program: Command): void {
             : (globalConfig as Record<string, unknown>)[key];
         }
         
-        output(success({ [key]: value }));
+        output(success({ [key]: value }), formatConfigGet);
       } else {
         output(success({
           global: globalConfig,
           project: projectConfig,
-        }));
+        }), formatConfigGet);
       }
     }));
 
@@ -112,6 +113,6 @@ export function registerConfigCommands(program: Command): void {
         key,
         value: parsedValue,
         scope: options.global ? 'global' : 'project',
-      }));
+      }), formatConfigSet);
     }));
 }

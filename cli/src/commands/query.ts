@@ -5,6 +5,7 @@ import { executeQuery, parseToAst, buildFromAst, aiFix } from '../core/client.js
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { invalidInput, networkError, apiError } from '../output/errors.js';
+import { formatQueryRun, formatQueryParse, formatQueryBuild, formatQueryExplain } from '../output/query-formatters.js';
 
 export function registerQueryCommands(program: Command): void {
   const queryCmd = program
@@ -74,7 +75,7 @@ export function registerQueryCommands(program: Command): void {
         }, {
           source: 'remote',
           warnings: [`Original query had error: ${response.error}. Auto-fixed with AI.`],
-        }));
+        }), formatQueryRun);
         return;
       }
 
@@ -89,7 +90,7 @@ export function registerQueryCommands(program: Command): void {
         rows: queryResults?.rows || queryData?.rows || [],
         fields: queryResults?.fields || queryData?.fields || [],
         rowCount: queryResults?.rowCount || queryData?.rowCount || 0,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatQueryRun);
     }));
 
   // Parse SQL to AST
@@ -106,11 +107,11 @@ export function registerQueryCommands(program: Command): void {
       if (parseData?.success === false) {
         throw invalidInput((parseData.message as string) || 'Failed to parse SQL');
       }
-      
+
       output(success({
         ast: parseData?.ast,
         tables: parseData?.tables,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatQueryParse);
     }));
 
   // Build SQL from AST
@@ -134,7 +135,7 @@ export function registerQueryCommands(program: Command): void {
       const buildData = response.data as Record<string, unknown> | undefined;
       output(success({
         sql: buildData?.query ?? buildData?.sql,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatQueryBuild);
     }));
 
   // Explain query
@@ -156,10 +157,10 @@ export function registerQueryCommands(program: Command): void {
       const queries = response.queries as Record<string, unknown> | undefined;
       const queryResults = (queries?.queryResults as Record<string, unknown>[] | undefined)?.[0];
       const queryData = response.data as Record<string, unknown> | undefined;
-      
+
       output(success({
         sql: options.sql,
         plan: queryResults?.rows || queryData?.rows || [],
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatQueryExplain);
     }));
 }

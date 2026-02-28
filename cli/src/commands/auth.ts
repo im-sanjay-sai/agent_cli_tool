@@ -14,6 +14,7 @@ import {
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { invalidInput } from '../output/errors.js';
+import { formatLogin, formatLogout, formatWhoami } from '../output/auth-formatters.js';
 
 export function registerAuthCommands(program: Command): void {
   // Login command
@@ -36,7 +37,7 @@ export function registerAuthCommands(program: Command): void {
           message: 'Successfully logged in with API token',
           method: 'token',
           tokenStored: true,
-        }));
+        }), formatLogin);
       } else {
         // ---- Method 2: Device Code Flow ----
         // Step 1: Request a device code from the server
@@ -86,7 +87,7 @@ export function registerAuthCommands(program: Command): void {
             orgName: tokenResponse.orgName,
             clerkOrgId: tokenResponse.clerkOrgId,
             tokenStored: true,
-          }));
+          }), formatLogin);
         } catch (error) {
           spinner.fail('Authentication failed');
           throw error;
@@ -104,7 +105,7 @@ export function registerAuthCommands(program: Command): void {
       output(success({
         message: 'Successfully logged out',
         tokenCleared: true,
-      }));
+      }), formatLogout);
     }));
 
   // Whoami command
@@ -121,6 +122,6 @@ export function registerAuthCommands(program: Command): void {
         email: state.email,
         orgName: state.orgName,
         clerkOrgId: state.clerkOrgId,
-      }));
+      }), formatWhoami);
     }));
 }

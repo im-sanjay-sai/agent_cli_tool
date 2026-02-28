@@ -18,6 +18,17 @@ import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { invalidInput, fromZodError, networkError, apiError } from '../output/errors.js';
+import {
+  formatDashboardList,
+  formatDashboardShow,
+  formatDashboardCreated,
+  formatDashboardUpdated,
+  formatDashboardDeleted,
+  formatFiltersUpdated,
+  formatSectionOrderUpdated,
+  formatDashboardSetup,
+  formatDeletionCancelled,
+} from '../output/dashboard-formatters.js';
 
 export function registerDashboardCommands(program: Command): void {
   const dashCmd = program
@@ -52,10 +63,10 @@ export function registerDashboardCommands(program: Command): void {
         output(successList(
           page.map(d => d.name as string),
           { source: 'remote', total }
-        ));
+        ), formatDashboardList);
         return;
       }
-      
+
       output(successList(
         page.map(d => {
           const filterCount = (d.filters as unknown[])?.length ?? 0;
@@ -65,7 +76,7 @@ export function registerDashboardCommands(program: Command): void {
           };
         }),
         { source: 'remote', total }
-      ));
+      ), formatDashboardList);
     }));
 
   // Show dashboard
@@ -107,7 +118,7 @@ export function registerDashboardCommands(program: Command): void {
         filters: data?.filters,
         sectionOrder: data?.sectionOrder,
         tenantKeys: data?.tenantKeys,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatDashboardShow);
     }));
 
   // Create dashboard
@@ -152,7 +163,7 @@ export function registerDashboardCommands(program: Command): void {
       
       // Frontend reads data.dashboard from response
       const rawData = response.data as Record<string, unknown> | undefined;
-      output(successCreated(rawData?.dashboard ?? rawData, { source: 'remote' }));
+      output(successCreated(rawData?.dashboard ?? rawData, { source: 'remote' }), formatDashboardCreated);
     }));
 
   // Update dashboard
@@ -189,7 +200,7 @@ export function registerDashboardCommands(program: Command): void {
       
       // Frontend reads data.dashboard from response
       const updateRawData = response.data as Record<string, unknown> | undefined;
-      output(successUpdated(updateRawData?.dashboard ?? updateRawData, { source: 'remote' }));
+      output(successUpdated(updateRawData?.dashboard ?? updateRawData, { source: 'remote' }), formatDashboardUpdated);
     }));
 
   // Delete dashboard
@@ -205,7 +216,7 @@ export function registerDashboardCommands(program: Command): void {
       if (!options.force) {
         const confirmed = await confirmDeletion('dashboard', name);
         if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }));
+          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
           return;
         }
       }
@@ -216,7 +227,7 @@ export function registerDashboardCommands(program: Command): void {
         throw apiError(response.error);
       }
       
-      output(successDeleted(name, 'dashboard', { source: 'remote' }));
+      output(successDeleted(name, 'dashboard', { source: 'remote' }), formatDashboardDeleted);
     }));
 
   // Set filters
@@ -246,7 +257,7 @@ export function registerDashboardCommands(program: Command): void {
         throw apiError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote' }));
+      output(successUpdated(response.data, { source: 'remote' }), formatFiltersUpdated);
     }));
 
   // Set section order
@@ -268,7 +279,7 @@ export function registerDashboardCommands(program: Command): void {
         throw apiError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote' }));
+      output(successUpdated(response.data, { source: 'remote' }), formatSectionOrderUpdated);
     }));
 
   // Setup: create dashboard + reports + filters in one shot
@@ -422,7 +433,7 @@ export function registerDashboardCommands(program: Command): void {
         }, {
           source: 'remote',
           warnings,
-        }));
+        }), formatDashboardSetup);
       } catch (error) {
         // Rollback: delete the partially-created dashboard
         if (dashboardName) {

@@ -9,6 +9,11 @@ import {
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { invalidInput, apiError } from '../output/errors.js';
+import {
+  formatPromoteDashDryRun, formatPromoteDash,
+  formatPromoteReportDryRun, formatPromoteReport,
+  formatPromoteVtDryRun, formatPromoteVt,
+} from '../output/promote-formatters.js';
 
 export function registerPromoteCommands(program: Command): void {
   const promoteCmd = program
@@ -43,7 +48,7 @@ export function registerPromoteCommands(program: Command): void {
           from: from.clientId,
           to: to.clientId,
           autoResolve: !!options.autoResolve,
-        }, { source: 'local' }));
+        }, { source: 'local' }), formatPromoteDashDryRun);
         return;
       }
       
@@ -63,7 +68,7 @@ export function registerPromoteCommands(program: Command): void {
         from: { clientId: from.clientId, name: from.name },
         to: { clientId: to.clientId, name: to.name },
         ...(data || {}),
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatPromoteDash);
     }));
 
   // Promote/copy report to another dashboard or environment
@@ -95,7 +100,7 @@ export function registerPromoteCommands(program: Command): void {
           to: to.clientId,
           sameClient: from.clientId === to.clientId,
           autoResolve: !!options.autoResolve,
-        }, { source: 'local' }));
+        }, { source: 'local' }), formatPromoteReportDryRun);
         return;
       }
       
@@ -117,7 +122,7 @@ export function registerPromoteCommands(program: Command): void {
         to: { clientId: to.clientId, name: to.name },
         sameClient: from.clientId === to.clientId,
         ...(data || {}),
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatPromoteReport);
     }));
 
   // Promote virtual table
@@ -146,7 +151,7 @@ export function registerPromoteCommands(program: Command): void {
           virtualTableName: name,
           from: from.clientId,
           to: to.clientId,
-        }, { source: 'local' }));
+        }, { source: 'local' }), formatPromoteVtDryRun);
         return;
       }
       
@@ -165,6 +170,6 @@ export function registerPromoteCommands(program: Command): void {
         from: { clientId: from.clientId, name: from.name },
         to: { clientId: to.clientId, name: to.name },
         ...(data || {}),
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatPromoteVt);
     }));
 }

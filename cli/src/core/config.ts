@@ -8,12 +8,14 @@ import { notInitialized } from '../output/errors.js';
 export interface GlobalOptions {
   pretty: boolean;
   verbose: boolean;
+  raw: boolean;
   token?: string;
 }
 
 let globalOptions: GlobalOptions = {
   pretty: false,
   verbose: false,
+  raw: false,
 };
 
 export function setGlobalOptions(opts: Partial<GlobalOptions>): void {

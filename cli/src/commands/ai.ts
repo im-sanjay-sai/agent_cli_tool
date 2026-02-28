@@ -11,6 +11,7 @@ import {
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { apiError, invalidInput } from '../output/errors.js';
+import { formatAiQuery, formatAiFix, formatAiPivot, formatAiEdit, formatAiSearchDocs } from '../output/ai-formatters.js';
 
 export function registerAiCommands(program: Command): void {
   const aiCmd = program
@@ -38,7 +39,7 @@ export function registerAiCommands(program: Command): void {
       output(success({
         prompt,
         sql: data?.message || data?.sql,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatAiQuery);
     }));
 
   // Fix broken SQL
@@ -61,7 +62,7 @@ export function registerAiCommands(program: Command): void {
         originalSql: options.sql,
         error: options.error,
         fixedSql: fixData?.message || fixData?.sql,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatAiFix);
     }));
 
   // Generate pivot configuration using AI
@@ -85,7 +86,7 @@ export function registerAiCommands(program: Command): void {
       const pivotData = response.data as Record<string, unknown> | undefined;
       output(success({
         pivotTables: pivotData?.pivotTables || pivotData?.data || pivotData,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatAiPivot);
     }));
 
   // Edit SQL with AI
@@ -108,7 +109,7 @@ export function registerAiCommands(program: Command): void {
         originalSql: options.sql,
         prompt: options.prompt,
         editedSql: editData?.message || editData?.sql,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatAiEdit);
     }));
 
   aiCmd
@@ -139,6 +140,6 @@ export function registerAiCommands(program: Command): void {
         searchQuery: options.query,
         k: k ?? 10,
         result: data?.metadata ?? data,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatAiSearchDocs);
     }));
 }

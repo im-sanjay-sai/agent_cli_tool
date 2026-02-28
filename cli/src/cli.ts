@@ -24,10 +24,11 @@ export function createCli(): Command {
 
   program
     .name('quill')
-    .description('CLI tool for Quill BI - manage dashboards, reports, and virtual tables. All output is JSON.')
+    .description('CLI tool for Quill BI - manage dashboards, reports, and virtual tables.')
     .version(pkg.version)
     .option('--pretty', 'Pretty-print JSON output')
     .option('--verbose', 'Enable verbose logging to stderr')
+    .option('--raw', 'Output raw JSON instead of human-readable text')
     .option('--token <token>', 'API token for authentication')
     .hook('preAction', (thisCommand) => {
       const opts = thisCommand.opts() as GlobalOptions;
