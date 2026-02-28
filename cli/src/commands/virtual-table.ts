@@ -17,6 +17,11 @@ import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { invalidInput, fromZodError, networkError, apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
+import {
+  formatVtList, formatVtShow, formatVtCreated,
+  formatVtUpdated, formatVtDeleted, formatVtTest,
+  formatVtValidate, formatDeletionCancelled,
+} from '../output/vt-formatters.js';
 
 /**
  * Fetch VT metadata (name + viewQuery) from the schema list.
@@ -73,7 +78,7 @@ export function registerVirtualTableCommands(program: Command): void {
           broken: t.broken,
         })),
         { source: 'remote', total }
-      ));
+      ), formatVtList);
     }));
 
   // Show virtual table
@@ -97,7 +102,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw networkError('No data returned for virtual table');
       }
       
-      output(success(response.data, { source: 'remote' }));
+      output(success(response.data, { source: 'remote' }), formatVtShow);
     }));
 
   // Create virtual table
@@ -151,7 +156,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw apiError(response.error);
       }
       
-      output(successCreated(response.data, { source: 'remote', warnings: vtWarnings }));
+      output(successCreated(response.data, { source: 'remote', warnings: vtWarnings }), formatVtCreated);
     }));
 
   // Update virtual table
@@ -185,7 +190,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw apiError(response.error);
       }
       
-      output(successUpdated(response.data, { source: 'remote' }));
+      output(successUpdated(response.data, { source: 'remote' }), formatVtUpdated);
     }));
 
   // Delete virtual table
@@ -202,7 +207,7 @@ export function registerVirtualTableCommands(program: Command): void {
       if (!options.force) {
         const confirmed = await confirmDeletion('virtual table', id);
         if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }));
+          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
           return;
         }
       }
@@ -213,7 +218,7 @@ export function registerVirtualTableCommands(program: Command): void {
         throw apiError(response.error);
       }
       
-      output(successDeleted(id, 'virtual_table', { source: 'remote' }));
+      output(successDeleted(id, 'virtual_table', { source: 'remote' }), formatVtDeleted);
     }));
 
   // Test virtual table
@@ -237,7 +242,7 @@ export function registerVirtualTableCommands(program: Command): void {
       output(success({
         id,
         ...response.data as Record<string, unknown>,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatVtTest);
     }));
 
   // Validate virtual table
@@ -268,6 +273,6 @@ export function registerVirtualTableCommands(program: Command): void {
         valid: result.valid,
         errors: result.errors,
         warnings: result.warnings,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatVtValidate);
     }));
 }

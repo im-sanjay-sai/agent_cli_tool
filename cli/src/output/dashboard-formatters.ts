@@ -1,15 +1,6 @@
 import chalk from 'chalk';
-import type { OutputResponse, HumanFormatter } from './formatter.js';
-
-/**
- * Append warnings (if any) as yellow text.
- */
-function formatWarnings(response: OutputResponse): string {
-  if ('warnings' in response && response.warnings?.length) {
-    return '\n' + response.warnings.map(w => chalk.yellow(`  Warning: ${w}`)).join('\n');
-  }
-  return '';
-}
+import type { HumanFormatter } from './formatter.js';
+import { formatWarnings } from './format-helpers.js';
 
 /**
  * dashboard list
@@ -141,10 +132,5 @@ export const formatDashboardSetup: HumanFormatter = (response) => {
   return lines.join('\n') + formatWarnings(response);
 };
 
-/**
- * dashboard delete (cancelled by user)
- */
-export const formatDeletionCancelled: HumanFormatter = (response) => {
-  if (!response.ok) return '';
-  return chalk.yellow('Deletion cancelled.');
-};
+// formatDeletionCancelled is exported from format-helpers.ts
+export { formatDeletionCancelled } from './format-helpers.js';

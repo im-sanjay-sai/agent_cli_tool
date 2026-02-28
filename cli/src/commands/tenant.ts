@@ -8,6 +8,7 @@ import {
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList } from '../output/success.js';
 import { apiError } from '../output/errors.js';
+import { formatTenantList, formatTenantMapping, formatTenantValidate } from '../output/tenant-formatters.js';
 
 export function registerTenantCommands(program: Command): void {
   const tenantCmd = program
@@ -36,7 +37,7 @@ export function registerTenantCommands(program: Command): void {
       const offset = parseInt(options.offset || '0', 10);
       const limit = parseInt(options.limit || '0', 10);
       const page = limit > 0 ? tenants.slice(offset, offset + limit) : tenants;
-      output(successList(page, { source: 'remote', total }));
+      output(successList(page, { source: 'remote', total }), formatTenantList);
     }));
 
   // Get tenant mapping
@@ -74,7 +75,7 @@ export function registerTenantCommands(program: Command): void {
       output(success({
         mappings: Object.keys(mappings).length > 0 ? mappings : mappingsData,
         queryOrder,
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatTenantMapping);
     }));
 
   // Validate tenant mapping
@@ -98,6 +99,6 @@ export function registerTenantCommands(program: Command): void {
         valid: validateData?.valid !== false,
         errors: validateData?.errors || [],
         warnings: validateData?.warnings || [],
-      }, { source: 'remote' }));
+      }, { source: 'remote' }), formatTenantValidate);
     }));
 }

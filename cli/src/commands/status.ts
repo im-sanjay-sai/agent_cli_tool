@@ -4,6 +4,7 @@ import { getMergedConfig } from '../core/config.js';
 import { testConnection } from '../core/client.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success } from '../output/success.js';
+import { formatStatus } from '../output/status-formatters.js';
 
 /**
  * `quill status` -- single command to check auth, config, and connection.
@@ -72,6 +73,6 @@ export function registerStatusCommand(program: Command): void {
       }, {
         source: 'local',
         warnings,
-      }));
+      }), formatStatus);
     }));
 }
