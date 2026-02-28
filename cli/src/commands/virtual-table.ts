@@ -3,7 +3,6 @@ import { Command } from 'commander';
 import { requireAuth } from '../core/auth.js';
 import {
   listVirtualTablesRemote,
-  fetchVirtualTable,
   createVirtualTableRemote,
   updateVirtualTableRemote,
   deleteVirtualTableRemote,
@@ -87,36 +86,27 @@ export function registerVirtualTableCommands(program: Command): void {
       requireValidId(id, 'virtual table');
       await requireAuth();
 
-      // Get metadata from the schema listing (name, viewQuery, columns, etc.)
-      const vtMeta = await getVtFromSchema(id);
-      verbose('Schema metadata for VT', vtMeta);
-
-      // Also fetch via 'view' task (returns query execution data + columns)
-      const viewResponse = await fetchVirtualTable(
-        id,
-        (vtMeta?.viewQuery as string) ?? undefined,
-        (vtMeta?.name ?? vtMeta?.displayName) as string ?? undefined,
-      );
-      verbose('View task response', viewResponse.data);
-
-      if (viewResponse.error) {
-        throw apiError(viewResponse.error);
+      // Fetch all tables from schema listing (same call vt list uses)
+      const response = await listVirtualTablesRemote();
+      if (response.error) {
+        throw apiError(response.error);
       }
 
-      // Merge: schema metadata first, then view response data on top
-      const merged = {
-        ...(vtMeta || {}),
-        ...(viewResponse.data as Record<string, unknown> || {}),
-        // Ensure key metadata fields aren't overwritten by view response
-        _id: vtMeta?._id ?? (viewResponse.data as Record<string, unknown>)?.id ?? id,
-        name: vtMeta?.name ?? vtMeta?.displayName ?? (viewResponse.data as Record<string, unknown>)?.name,
-        viewQuery: vtMeta?.viewQuery,
-        columns: vtMeta?.columns ?? (viewResponse.data as Record<string, unknown>)?.columns,
-        ownerTenantFields: vtMeta?.ownerTenantFields,
-        broken: vtMeta?.broken,
-      };
+      const data = response.data as Record<string, unknown> | undefined;
+      // Debug: print the top-level keys of the schema response
+      console.error('[debug] schema response keys:', data ? Object.keys(data) : 'data is falsy');
 
-      output(success(merged, { source: 'remote' }), formatVtShow);
+      const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
+      console.error('[debug] allTables count:', allTables.length);
+
+      const vt = allTables.find(t => (t._id as string) === id || (t.id as string) === id);
+      console.error('[debug] found VT:', vt ? Object.keys(vt) : 'null');
+
+      if (!vt) {
+        throw apiError(`Virtual table '${id}' not found in schema (${allTables.length} tables available)`);
+      }
+
+      output(success(vt, { source: 'remote' }), formatVtShow);
     }));
 
   // Create virtual table
