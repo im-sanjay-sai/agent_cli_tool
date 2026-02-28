@@ -3,6 +3,15 @@ import express from 'express';
 import cors from 'cors';
 import { runAgentStreaming, ChatRequest } from './agent';
 import { quillProxyHandler } from './quillProxy';
+import {
+  diffSession,
+  discardSession,
+  ensureSession,
+  getSession,
+  getSessionExecutionContext,
+  isSessionSandboxEnabled,
+  promoteSession,
+} from './sessionService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,9 +49,101 @@ app.get('/health', (_req, res) => {
 // Quill Server SDK proxy (the CLI sends requests here)
 app.post('/api/quill', quillProxyHandler);
 
+// Session APIs for sandbox workflows
+app.post('/api/session/start', async (req, res) => {
+  const { sessionId, sourceClientId } = req.body as {
+    sessionId?: string;
+    sourceClientId?: string;
+  };
+  if (!sessionId) {
+    res.status(400).json({ error: 'sessionId is required' });
+    return;
+  }
+  try {
+    const session = await ensureSession(sessionId, sourceClientId);
+    res.json({
+      sessionId: session.sessionId,
+      sourceClientId: session.sourceClientId,
+      sandboxClientId: session.sandboxClientId,
+      sandboxClientName: session.sandboxClientName,
+      status: session.status,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to start session',
+    });
+  }
+});
+
+app.get('/api/session/:sessionId', (req, res) => {
+  const session = getSession(req.params.sessionId);
+  if (!session) {
+    res.status(404).json({ error: `Session not found: ${req.params.sessionId}` });
+    return;
+  }
+  res.json(session);
+});
+
+app.post('/api/session/:sessionId/diff', async (req, res) => {
+  const { compareToClientId } = req.body as { compareToClientId?: string };
+  try {
+    const result = await diffSession(req.params.sessionId, compareToClientId);
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to diff session',
+    });
+  }
+});
+
+app.post('/api/session/:sessionId/promote', async (req, res) => {
+  const {
+    targetClientId,
+    addMissingTables,
+    skipWarning,
+    autoDiscard,
+  } = req.body as {
+    targetClientId?: string;
+    addMissingTables?: boolean;
+    skipWarning?: boolean;
+    autoDiscard?: boolean;
+  };
+  if (!targetClientId) {
+    res.status(400).json({ error: 'targetClientId is required' });
+    return;
+  }
+  try {
+    const result = await promoteSession(req.params.sessionId, targetClientId, {
+      addMissingTables,
+      skipWarning,
+      autoDiscard,
+    });
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to promote session',
+    });
+  }
+});
+
+app.post('/api/session/:sessionId/discard', async (req, res) => {
+  try {
+    const result = await discardSession(req.params.sessionId);
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to discard session',
+    });
+  }
+});
+
 // Chat endpoint (SSE streaming)
 app.post('/api/chat', async (req, res) => {
-  const { messages } = req.body as ChatRequest;
+  const { messages, sessionId, sourceClientId } = req.body as ChatRequest & {
+    sourceClientId?: string;
+  };
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({
@@ -69,6 +170,31 @@ app.post('/api/chat', async (req, res) => {
   });
 
   try {
+    let executionContext:
+      | {
+          sessionId: string;
+          workingDir: string;
+        }
+      | undefined;
+
+    if (isSessionSandboxEnabled()) {
+      if (!sessionId) {
+        res.write(
+          `event: error\ndata: ${JSON.stringify({
+            message:
+              'sessionId is required when SESSION_SANDBOX_ENABLED is true',
+          })}\n\n`,
+        );
+        res.end();
+        return;
+      }
+      const context = await getSessionExecutionContext(sessionId, sourceClientId);
+      executionContext = {
+        sessionId: context.sessionId,
+        workingDir: context.workingDir,
+      };
+    }
+
     await runAgentStreaming(
       messages,
       (event, data) => {
@@ -76,6 +202,8 @@ app.post('/api/chat', async (req, res) => {
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         }
       },
+      undefined,
+      executionContext,
     );
   } catch (err: any) {
     console.error('[chat] Error:', err.message);

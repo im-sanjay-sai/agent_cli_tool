@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 .cursor/
+
+# OS / editor
+.DS_Store
+*.code-workspace
 # Agent build output
 agent/.next/
 

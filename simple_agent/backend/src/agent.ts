@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { SYSTEM_PROMPT } from './systemPrompt';
-import { executeCli } from './executeCli';
+import { executeCli, ExecuteCliContext } from './executeCli';
 
 const client = new OpenAI();
 
@@ -16,6 +16,7 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   messages: ChatMessage[];
+  sessionId?: string;
 }
 
 export interface ChatResponse {
@@ -23,28 +24,30 @@ export interface ChatResponse {
   finalContent: string;
 }
 
-// Shared tool definition used by both streaming and non-streaming runners
-const toolDefinition = {
-  type: 'function' as const,
-  function: {
-    function: executeCli,
-    parse: JSON.parse,
-    name: 'execute_cli_command',
-    description:
-      'Execute a Quill CLI command. The command must start with "quill". Returns JSON output from the CLI.',
-    parameters: {
-      type: 'object' as const,
-      properties: {
-        command: {
-          type: 'string',
-          description:
-            'The full quill CLI command to execute, e.g. "quill dashboard list --pretty"',
+function createToolDefinition(executionContext?: ExecuteCliContext) {
+  return {
+    type: 'function' as const,
+    function: {
+      function: async (args: { command: string }) =>
+        executeCli(args, executionContext),
+      parse: JSON.parse,
+      name: 'execute_cli_command',
+      description:
+        'Execute a Quill CLI command. The command must start with "quill". Returns JSON output from the CLI.',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          command: {
+            type: 'string',
+            description:
+              'The full quill CLI command to execute, e.g. "quill dashboard list --pretty". Session helper commands are also supported: "quill session info", "quill session diff", "quill session promote --to <clientId>", "quill session discard".',
+          },
         },
+        required: ['command'],
       },
-      required: ['command'],
     },
-  },
-};
+  };
+}
 
 function formatMessages(userMessages: ChatMessage[]) {
   return userMessages.map((m) => ({
@@ -57,7 +60,8 @@ function formatMessages(userMessages: ChatMessage[]) {
 }
 
 export async function runAgent(
-  userMessages: ChatMessage[]
+  userMessages: ChatMessage[],
+  executionContext?: ExecuteCliContext,
 ): Promise<ChatResponse> {
   const collectedMessages: ChatMessage[] = [];
 
@@ -70,7 +74,7 @@ export async function runAgent(
         { role: 'developer', content: SYSTEM_PROMPT },
         ...formattedMessages,
       ],
-      tools: [toolDefinition],
+      tools: [createToolDefinition(executionContext)],
     })
     .on('message', (message: any) => {
       collectedMessages.push(message);
@@ -93,6 +97,7 @@ export async function runAgentStreaming(
   userMessages: ChatMessage[],
   emit: SSEEmitter,
   signal?: AbortSignal,
+  executionContext?: ExecuteCliContext,
 ): Promise<void> {
   const formattedMessages = formatMessages(userMessages);
 
@@ -104,7 +109,7 @@ export async function runAgentStreaming(
         { role: 'developer', content: SYSTEM_PROMPT },
         ...formattedMessages,
       ],
-      tools: [toolDefinition],
+      tools: [createToolDefinition(executionContext)],
     })
     .on('message', (message: any) => {
       emit('message', message);

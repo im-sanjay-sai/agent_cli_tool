@@ -290,43 +290,11 @@ export async function buildFromAst(ast: unknown): Promise<QuillResponse> {
   return quillFetch({ task: 'sqlify', metadata: { ast, useNewNodeSql: true } });
 }
 
-// Schema tasks
-// tenants injected globally by quillFetch
-export async function fetchSchema(): Promise<QuillResponse> {
-  return quillFetch({
-    task: 'schema',
-    metadata: {
-      removeCustomerField: true,
-      removeCustomFieldRef: true,
-      useNewCustomFields: true,
-    },
-  });
-}
-
-// Server expects schemaNames (array), not schema (string)
-// Response is in metadata.tables, not data.tables
-export async function fetchTablesBySchema(schema: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'tables-by-schema', metadata: { schemaNames: [schema] } });
-}
-
-export async function fetchTableInfo(schema: string, table: string): Promise<QuillResponse> {
-  return quillFetch({ task: 'table-info', metadata: { schema, table } });
-}
-
 export async function testConnection(connectionString?: string, databaseType?: string): Promise<QuillResponse> {
   return quillFetch({
     task: 'test-connection',
     metadata: { connectionString, databaseType },
     timeout: 60000, // 60s — DB connection through proxy can be slow
-  });
-}
-
-export async function fetchSchemaNames(): Promise<QuillResponse> {
-  return quillFetch({
-    task: 'get-schema-names',
-    metadata: {
-      databaseType: normalizeDatabaseType(process.env.QUILL_DATABASE_TYPE) || 'postgresql',
-    },
   });
 }
 

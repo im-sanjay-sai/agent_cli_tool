@@ -5,7 +5,6 @@ import { registerConfigCommands } from './commands/config.js';
 import { registerDashboardCommands } from './commands/dashboard.js';
 import { registerReportCommands } from './commands/report.js';
 import { registerVirtualTableCommands } from './commands/virtual-table.js';
-import { registerSchemaCommands } from './commands/schema.js';
 import { registerQueryCommands } from './commands/query.js';
 import { registerAiCommands } from './commands/ai.js';
 import { registerTenantCommands } from './commands/tenant.js';
@@ -41,7 +40,6 @@ export function createCli(): Command {
   registerDashboardCommands(program);
   registerReportCommands(program);
   registerVirtualTableCommands(program);
-  registerSchemaCommands(program);
   registerQueryCommands(program);
   registerAiCommands(program);
   registerTenantCommands(program);
