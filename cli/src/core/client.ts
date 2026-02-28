@@ -116,7 +116,7 @@ export async function quillFetch(options: QuillFetchOptions): Promise<QuillRespo
     verbose(`API Response: ${options.task}`, result);
     
     return {
-      data: result.data,
+      data: result.data ?? result.metadata,
       queries: result.queries,
       status: result.status as 'success' | 'error' | undefined,
       error: result.error as string | undefined,
