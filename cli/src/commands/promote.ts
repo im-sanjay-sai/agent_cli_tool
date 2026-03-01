@@ -10,9 +10,9 @@ import { output, withErrorHandling } from '../output/formatter.js';
 import { success } from '../output/success.js';
 import { invalidInput, apiError } from '../output/errors.js';
 import {
-  formatPromoteDashDryRun, formatPromoteDash,
-  formatPromoteReportDryRun, formatPromoteReport,
-  formatPromoteVtDryRun, formatPromoteVt,
+  formatPromoteDash,
+  formatPromoteReport,
+  formatPromoteVt,
 } from '../output/promote-formatters.js';
 
 export function registerPromoteCommands(program: Command): void {
@@ -29,7 +29,6 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--to <nameOrId>', 'Target environment name or client ID')
     .option('--auto-resolve', 'Automatically resolve conflicts (e.g. add missing tables)')
     .option('--skip-warning', 'Skip promotion warnings')
-    .option('--dry-run', 'Preview what would be promoted without making changes')
     .addHelpText('after', '\nExamples:\n  $ quill promote dashboard "Sales" --from staging --to production\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
@@ -41,18 +40,6 @@ export function registerPromoteCommands(program: Command): void {
         throw invalidInput('--from and --to must be different environments for dashboard promotion');
       }
 
-      if (options.dryRun) {
-        output(success({
-          dryRun: true,
-          action: 'promote-dashboard',
-          dashboardName: name,
-          from: from.clientId,
-          to: to.clientId,
-          autoResolve: !!options.autoResolve,
-        }, { source: 'local' }), formatPromoteDashDryRun);
-        return;
-      }
-      
       const response = await promoteDashboardRemote(name, from.clientId, to.clientId, {
         addMissingTables: options.autoResolve,
         skipWarning: options.skipWarning,
@@ -84,7 +71,6 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--to <nameOrId>', 'Target environment name or client ID (same as --from for cross-dashboard copy)')
     .option('--auto-resolve', 'Automatically add missing virtual tables (cross-env only)')
     .option('--skip-warning', 'Skip promotion warnings')
-    .option('--dry-run', 'Preview what would be promoted without making changes')
     .addHelpText('after', '\nExamples:\n  $ quill promote report 65abc... --to-dashboard "Sales" --from staging --to production\n')
     .action(withErrorHandling(async (id, options) => {
       await requireAuth();
@@ -92,20 +78,6 @@ export function registerPromoteCommands(program: Command): void {
       const from = await resolveClientId(options.from);
       const to = await resolveClientId(options.to);
 
-      if (options.dryRun) {
-        output(success({
-          dryRun: true,
-          action: 'promote-report',
-          reportId: id,
-          toDashboard: options.toDashboard,
-          from: from.clientId,
-          to: to.clientId,
-          sameClient: from.clientId === to.clientId,
-          autoResolve: !!options.autoResolve,
-        }, { source: 'local' }), formatPromoteReportDryRun);
-        return;
-      }
-      
       const response = await promoteReportRemote(id, options.toDashboard, from.clientId, to.clientId, {
         addMissingTables: from.clientId !== to.clientId ? options.autoResolve : false,
         skipWarning: options.skipWarning,
@@ -135,7 +107,6 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--from <nameOrId>', 'Source environment name or client ID')
     .requiredOption('--to <nameOrId>', 'Target environment name or client ID')
     .option('--skip-warning', 'Skip promotion warnings')
-    .option('--dry-run', 'Preview what would be promoted without making changes')
     .addHelpText('after', '\nExamples:\n  $ quill promote vt "orders_view" --from staging --to production\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
@@ -147,17 +118,6 @@ export function registerPromoteCommands(program: Command): void {
         throw invalidInput('--from and --to must be different environments for VT promotion');
       }
 
-      if (options.dryRun) {
-        output(success({
-          dryRun: true,
-          action: 'promote-vt',
-          virtualTableName: name,
-          from: from.clientId,
-          to: to.clientId,
-        }, { source: 'local' }), formatPromoteVtDryRun);
-        return;
-      }
-      
       const response = await promoteVTRemote(name, from.clientId, to.clientId, {
         skipWarning: options.skipWarning,
       });
