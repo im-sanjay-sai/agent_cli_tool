@@ -46,8 +46,8 @@ async function resolveReportId(
     const sections = (data?.sections ?? {}) as Record<string, Record<string, unknown>[]>;
     for (const sectionReports of Object.values(sections)) {
       for (const report of sectionReports) {
-        const reportName = (report.name as string) ?? '';
-        if (reportName.toLowerCase() === name.toLowerCase()) {
+        const reportName = ((report.name as string) ?? '').trim();
+        if (reportName.toLowerCase() === name.trim().toLowerCase()) {
           return (report.id ?? report._id) as string;
         }
       }

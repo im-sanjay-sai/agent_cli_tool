@@ -50,9 +50,10 @@ async function resolveVtId(id: string | undefined, name: string | undefined): Pr
     if (response.error) throw apiError(response.error);
     const data = response.data as Record<string, unknown> | undefined;
     const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
+    const needle = name.trim().toLowerCase();
     const vt = allTables.find(t =>
-      ((t.name as string) ?? '').toLowerCase() === name.toLowerCase() ||
-      ((t.displayName as string) ?? '').toLowerCase() === name.toLowerCase()
+      ((t.name as string) ?? '').trim().toLowerCase() === needle ||
+      ((t.displayName as string) ?? '').trim().toLowerCase() === needle
     );
     if (!vt) {
       throw invalidInput(`Virtual table "${name}" not found. Run 'quill vt list' to see available tables.`);

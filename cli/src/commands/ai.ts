@@ -116,7 +116,7 @@ export function registerAiCommands(program: Command): void {
 
   aiCmd
     .command('search-docs')
-    .description('Search Quill documentation')
+    .description(' Semantic search inside the Quill documentation, use a natural language query to search for documentation')
     .requiredOption('--query <text>', 'Search query string')
     .option('--k <number>', 'Top K results to return (default: 10)')
     .addHelpText('after', '\nExamples:\n  $ quill ai search-docs --query "how to create filters"\n')
