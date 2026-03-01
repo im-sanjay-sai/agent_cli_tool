@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import * as fs from 'fs/promises';
 import { requireAuth } from '../core/auth.js';
 import {
   aiGenerateFromSchema,
@@ -24,9 +23,10 @@ export function registerAiCommands(program: Command): void {
     .description('Generate SQL from natural language')
     .argument('<prompt>', 'Natural language description')
     .option('--schemas <names>', 'Comma-separated schema names to use')
+    .addHelpText('after', '\nExamples:\n  $ quill ai query "show me revenue by month"\n')
     .action(withErrorHandling(async (prompt, options) => {
       await requireAuth();
-      
+
       const schemas = options.schemas?.split(',').map((s: string) => s.trim());
       
       const response = await aiGenerateFromSchema(prompt, schemas);
@@ -48,9 +48,10 @@ export function registerAiCommands(program: Command): void {
     .description('Fix broken SQL using AI')
     .requiredOption('--sql <query>', 'The broken SQL query')
     .requiredOption('--error <message>', 'The error message')
+    .addHelpText('after', '\nExamples:\n  $ quill ai fix --sql "SELECT * FORM users" --error "relation form does not exist"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await aiFix(options.sql, options.error);
       
       if (response.error) {
@@ -70,12 +71,12 @@ export function registerAiCommands(program: Command): void {
   aiCmd
     .command('pivot')
     .description('Generate pivot configuration using AI (requires structured JSON with column metadata)')
-    .requiredOption('--file <path>', 'JSON file with: { pivotCountRequest, allowedRowFields, allowedColumnFields, allowedValueFields, tableSchema }')
+    .requiredOption('--json <data>', 'Inline JSON: { pivotCountRequest, allowedRowFields, allowedColumnFields, allowedValueFields, tableSchema }')
+    .addHelpText('after', '\nExamples:\n  $ quill ai pivot --json \'{"pivotCountRequest":5,"allowedRowFields":["category"]}\'\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
-      const content = await fs.readFile(options.file, 'utf-8');
-      const pivotConfig = JSON.parse(content);
+
+      const pivotConfig = JSON.parse(options.json);
       
       const response = await aiPivot(pivotConfig);
       
@@ -95,9 +96,10 @@ export function registerAiCommands(program: Command): void {
     .description('Edit SQL using AI')
     .requiredOption('--sql <query>', 'The existing SQL query')
     .requiredOption('--prompt <changes>', 'Description of changes to make')
+    .addHelpText('after', '\nExamples:\n  $ quill ai edit --sql "SELECT * FROM orders" --prompt "add WHERE for last 30 days"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await aiMagicEdit(options.prompt, options.sql);
       
       if (response.error) {
@@ -114,9 +116,10 @@ export function registerAiCommands(program: Command): void {
 
   aiCmd
     .command('search-docs')
-    .description('Semantic search of documents about quill commands if unsure about anything')
+    .description('Search Quill documentation')
     .requiredOption('--query <text>', 'Search query string')
     .option('--k <number>', 'Top K results to return (default: 10)')
+    .addHelpText('after', '\nExamples:\n  $ quill ai search-docs --query "how to create filters"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
 

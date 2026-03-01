@@ -87,6 +87,7 @@ export function registerTemplateCommand(program: Command): void {
     .command('template')
     .description('Show example JSON template for --file flags')
     .argument('<name>', `Template name: ${Object.keys(templates).join(', ')}`)
+    .addHelpText('after', '\nExamples:\n  $ quill template report\n  $ quill template dashboard-filters\n')
     .action((name) => {
       const template = templates[name];
       if (!template) {

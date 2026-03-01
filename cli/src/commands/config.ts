@@ -24,6 +24,7 @@ export function registerConfigCommands(program: Command): void {
     .option('--client-id <id>', 'Quill client ID')
     .option('--endpoint <url>', 'Query endpoint URL')
     .option('--force', 'Overwrite existing configuration')
+    .addHelpText('after', '\nExamples:\n  $ quill config init --client-id 65abc... --endpoint http://localhost:3001/api/quill\n')
     .action(withErrorHandling(async (options) => {
       const cwd = process.cwd();
       
@@ -51,6 +52,7 @@ export function registerConfigCommands(program: Command): void {
     .argument('[key]', 'Configuration key to get')
     .option('--global', 'Get from global config only')
     .option('--project', 'Get from project config only')
+    .addHelpText('after', '\nExamples:\n  $ quill config get clientId\n  $ quill config get --global\n')
     .action(withErrorHandling(async (key, options) => {
       const globalConfig = await getGlobalConfig();
       
@@ -89,6 +91,7 @@ export function registerConfigCommands(program: Command): void {
     .argument('<key>', 'Configuration key')
     .argument('<value>', 'Configuration value')
     .option('--global', 'Set in global config')
+    .addHelpText('after', '\nExamples:\n  $ quill config set clientId 65abc...\n  $ quill config set queryEndpoint http://localhost:3001/api/quill --global\n')
     .action(withErrorHandling(async (key, value, options) => {
       let parsedValue: unknown = value;
       if (value === 'true') parsedValue = true;

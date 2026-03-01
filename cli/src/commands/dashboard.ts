@@ -1,6 +1,4 @@
 import { Command } from 'commander';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 // Environment concept removed -- clientId IS the environment
 import { requireAuth } from '../core/auth.js';
 import { validateSqlStructure, extractColumns } from '../utils/ast.js';
@@ -14,7 +12,6 @@ import {
   setSectionOrder,
 } from '../core/client.js';
 import { DashboardCreateInputSchema, DashboardFiltersUpdateSchema, ReportCreateInputSchema } from '../models/index.js';
-import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { invalidInput, fromZodError, networkError, apiError } from '../output/errors.js';
@@ -27,7 +24,6 @@ import {
   formatFiltersUpdated,
   formatSectionOrderUpdated,
   formatDashboardSetup,
-  formatDeletionCancelled,
 } from '../output/dashboard-formatters.js';
 
 export function registerDashboardCommands(program: Command): void {
@@ -43,9 +39,10 @@ export function registerDashboardCommands(program: Command): void {
     .option('--names-only', 'Return only dashboard names (lightweight)')
     .option('--limit <n>', 'Max items to return')
     .option('--offset <n>', 'Skip first N items')
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard list\n  $ quill dash list --limit 5\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await fetchDashboards();
       
       if (response.error) {
@@ -85,9 +82,10 @@ export function registerDashboardCommands(program: Command): void {
     .description('Show dashboard details')
     .argument('<name>', 'Dashboard name')
     .option('--full', 'Output the full raw dashboard data (warning: can be very large)')
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard show "Sales"\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      
+
       const response = await fetchDashboard(name);
       
       if (response.error) {
@@ -126,19 +124,15 @@ export function registerDashboardCommands(program: Command): void {
     .command('create')
     .description('Create a new dashboard')
     .requiredOption('--name <name>', 'Dashboard name')
-    .option('--file <path>', 'JSON file: { name, tenantKeys?, layout? }')
+    .option('--json <data>', 'Inline JSON: { name, tenantKeys?, layout? }')
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard create --name "Sales Dashboard"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
-      
+
       let input: Record<string, unknown>;
-      
-      if (options.file) {
-        const content = await fs.readFile(options.file, 'utf-8');
-        input = JSON.parse(content);
-        if (input.name && input.name !== options.name) {
-          verbose(`Warning: --name "${options.name}" overridden by name "${input.name}" from --file`);
-        }
+
+      if (options.json) {
+        input = JSON.parse(options.json);
         if (!input.name) {
           input.name = options.name;
         }
@@ -172,24 +166,23 @@ export function registerDashboardCommands(program: Command): void {
     .description('Update a dashboard')
     .argument('<name>', 'Dashboard name')
     .option('--new-name <newName>', 'New dashboard name')
-    .option('--file <path>', 'JSON file: { newName?, tenantKeys?, filters? }')
+    .option('--json <data>', 'Inline JSON: { newName?, tenantKeys?, filters? }')
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard update "Sales" --new-name "Revenue"\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      
-      
+
       let updates: Record<string, unknown> = {};
-      
-      if (options.file) {
-        const content = await fs.readFile(options.file, 'utf-8');
-        updates = JSON.parse(content);
+
+      if (options.json) {
+        updates = JSON.parse(options.json);
       }
-      
+
       if (options.newName) {
         updates.newName = options.newName;
       }
       
       if (Object.keys(updates).length === 0) {
-        throw invalidInput('No updates specified. Use --new-name or --file');
+        throw invalidInput('No updates specified. Use --new-name or --json');
       }
       
       const response = await editDashboard(name, updates);
@@ -208,19 +201,10 @@ export function registerDashboardCommands(program: Command): void {
     .command('delete')
     .description('Delete a dashboard')
     .argument('<name>', 'Dashboard name')
-    .option('--force', 'Skip confirmation')
-    .action(withErrorHandling(async (name, options) => {
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard delete "Old Dashboard"\n')
+    .action(withErrorHandling(async (name) => {
       await requireAuth();
-      
-      
-      if (!options.force) {
-        const confirmed = await confirmDeletion('dashboard', name);
-        if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
-          return;
-        }
-      }
-      
+
       const response = await deleteDashboardRemote(name);
       
       if (response.error) {
@@ -235,14 +219,13 @@ export function registerDashboardCommands(program: Command): void {
     .command('set-filters')
     .description('Set dashboard filters')
     .argument('<name>', 'Dashboard name')
-    .requiredOption('--file <path>', 'JSON file: { globalFilters: [{ id, type, field, label? }] }')
+    .requiredOption('--json <data>', 'Inline JSON: { globalFilters: [{ id, type, field, label? }] }')
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard set-filters "Sales" --json \'{"globalFilters": [{"id":"f1","type":"string","field":"region"}]}\'\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      
-      
-      const content = await fs.readFile(options.file, 'utf-8');
-      const data = JSON.parse(content);
-      
+
+      const data = JSON.parse(options.json);
+
       // Validate filters
       const parseResult = DashboardFiltersUpdateSchema.safeParse(data);
       if (!parseResult.success) {
@@ -265,14 +248,13 @@ export function registerDashboardCommands(program: Command): void {
     .command('set-section-order')
     .description('Set dashboard section order')
     .argument('<name>', 'Dashboard name')
-    .requiredOption('--file <path>', 'JSON file: { sectionOrder: [{ section, reportOrder: [id, ...] }] }')
+    .requiredOption('--json <data>', 'Inline JSON: { sectionOrder: [{ section, reportOrder: [id, ...] }] }')
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard set-section-order "Sales" --json \'{"sectionOrder": [{"section":"Overview","reportOrder":["id1"]}]}\'\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      
-      
-      const content = await fs.readFile(options.file, 'utf-8');
-      const data = JSON.parse(content);
-      
+
+      const data = JSON.parse(options.json);
+
       const response = await setSectionOrder(name, data.sectionOrder || data);
       
       if (response.error) {
@@ -287,12 +269,12 @@ export function registerDashboardCommands(program: Command): void {
     .command('setup')
     .description('Create a dashboard with reports and filters in one command')
     .requiredOption('--name <name>', 'Dashboard name')
-    .option('--reports <paths>', 'Comma-separated report JSON file paths, or a directory containing report JSON files')
-    .option('--filters <path>', 'JSON file with global filters config')
-    .option('--file <path>', 'JSON file: { name, tenantKeys?, layout? }')
+    .option('--reports-json <data>', 'JSON array of report objects')
+    .option('--filters-json <data>', 'Inline JSON: { globalFilters: [...] }')
+    .option('--json <data>', 'Inline JSON: { name, tenantKeys?, layout? }')
+    .addHelpText('after', '\nExamples:\n  $ quill dashboard setup --name "Sales" --reports-json \'[...]\' --filters-json \'{"globalFilters":[...]}\'\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
 
       const warnings: string[] = [];
       let dashboardName: string = options.name;
@@ -300,9 +282,8 @@ export function registerDashboardCommands(program: Command): void {
       try {
         // Step 1: Build dashboard config
         let dashboardInput: Record<string, unknown>;
-        if (options.file) {
-          const content = await fs.readFile(options.file, 'utf-8');
-          dashboardInput = JSON.parse(content);
+        if (options.json) {
+          dashboardInput = JSON.parse(options.json);
           if (!dashboardInput.name) {
             dashboardInput.name = options.name;
           }
@@ -333,18 +314,15 @@ export function registerDashboardCommands(program: Command): void {
         // Step 2: Create reports (if provided)
         const createdReports: Array<{ name: string; id: string }> = [];
 
-        if (options.reports) {
-          const reportFiles = await resolveReportFiles(options.reports);
-          verbose(`Setup step 2: Creating ${reportFiles.length} reports...`);
+        if (options.reportsJson) {
+          const reportsList = JSON.parse(options.reportsJson) as Record<string, unknown>[];
+          verbose(`Setup step 2: Creating ${reportsList.length} reports...`);
 
-          for (const reportFile of reportFiles) {
+          for (const reportData of reportsList) {
             try {
-              const content = await fs.readFile(reportFile, 'utf-8');
-              const reportData = JSON.parse(content);
-
               const reportParse = ReportCreateInputSchema.safeParse(reportData);
               if (!reportParse.success) {
-                warnings.push(`Skipped ${reportFile}: ${reportParse.error.issues[0]?.message || 'validation failed'}`);
+                warnings.push(`Skipped report: ${reportParse.error.issues[0]?.message || 'validation failed'}`);
                 continue;
               }
 
@@ -368,7 +346,7 @@ export function registerDashboardCommands(program: Command): void {
                 useNewNodeSql: true,
                 referencedTables: refTables,
                 referencedColumns: refColumnsMap,
-                columns: (reportData as Record<string, unknown>).columns,
+                columns: reportData.columns,
                 xAxisLabel: fmt?.xAxisLabel || '',
                 xAxisFormat: fmt?.xAxisFormat || 'string',
                 yAxisFields: fmt?.yAxisFields || [],
@@ -376,7 +354,7 @@ export function registerDashboardCommands(program: Command): void {
               });
 
               if (reportResponse.error) {
-                warnings.push(`Failed to create report from ${reportFile}: ${reportResponse.error}`);
+                warnings.push(`Failed to create report "${reportParse.data.name}": ${reportResponse.error}`);
                 continue;
               }
 
@@ -388,17 +366,16 @@ export function registerDashboardCommands(program: Command): void {
               });
               verbose(`Created report: ${reportParse.data.name} (${reportId})`);
             } catch (err) {
-              warnings.push(`Error processing ${reportFile}: ${err instanceof Error ? err.message : String(err)}`);
+              warnings.push(`Error processing report: ${err instanceof Error ? err.message : String(err)}`);
             }
           }
         }
 
-        // Step 3: Set filters from separate file (if provided and not already in dashboard config)
-        if (options.filters && !options.file) {
+        // Step 3: Set filters (if provided and not already in dashboard config)
+        if (options.filtersJson && !options.json) {
           verbose('Setup step 3: Setting filters...');
           try {
-            const filtersContent = await fs.readFile(options.filters, 'utf-8');
-            const filtersData = JSON.parse(filtersContent);
+            const filtersData = JSON.parse(options.filtersJson);
 
             const filtersParse = DashboardFiltersUpdateSchema.safeParse(filtersData);
             if (!filtersParse.success) {
@@ -448,25 +425,4 @@ export function registerDashboardCommands(program: Command): void {
         throw error;
       }
     }));
-}
-
-/**
- * Resolve report file paths from a comma-separated list or directory path.
- */
-async function resolveReportFiles(reportsArg: string): Promise<string[]> {
-  // Check if it's a directory
-  try {
-    const stat = await fs.stat(reportsArg);
-    if (stat.isDirectory()) {
-      const files = await fs.readdir(reportsArg);
-      return files
-        .filter(f => f.endsWith('.json'))
-        .sort()
-        .map(f => path.join(reportsArg, f));
-    }
-  } catch {
-    // Not a directory, treat as comma-separated file list
-  }
-
-  return reportsArg.split(',').map(f => f.trim()).filter(Boolean);
 }

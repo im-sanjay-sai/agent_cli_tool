@@ -15,6 +15,7 @@ export function registerStatusCommand(program: Command): void {
     .command('status')
     .description('Show authentication, configuration, and connection status')
     .option('--skip-connection-test', 'Skip the database connection test')
+    .addHelpText('after', '\nExamples:\n  $ quill status\n  $ quill status --skip-connection-test\n')
     .action(withErrorHandling(async (options) => {
       const warnings: string[] = [];
 

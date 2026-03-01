@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import * as fs from 'fs/promises';
 import { requireAuth } from '../core/auth.js';
 import { executeQuery, parseToAst, buildFromAst, aiFix } from '../core/client.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
@@ -17,15 +16,15 @@ export function registerQueryCommands(program: Command): void {
     .command('run')
     .description('Execute a SQL query')
     .requiredOption('--sql <query>', 'SQL query to execute')
-    .option('--filters <path>', 'JSON file with filters')
+    .option('--filters <data>', 'Inline JSON filters')
     .option('--auto-fix', 'On SQL error, automatically use AI to fix and retry once')
+    .addHelpText('after', '\nExamples:\n  $ quill query run --sql "SELECT count(*) FROM orders"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       let filters;
       if (options.filters) {
-        const content = await fs.readFile(options.filters, 'utf-8');
-        filters = JSON.parse(content);
+        filters = JSON.parse(options.filters);
       }
       
       const response = await executeQuery(options.sql, filters);
@@ -98,9 +97,10 @@ export function registerQueryCommands(program: Command): void {
     .command('parse')
     .description('Parse SQL to AST')
     .requiredOption('--sql <query>', 'SQL query to parse')
+    .addHelpText('after', '\nExamples:\n  $ quill query parse --sql "SELECT * FROM users WHERE id = 1"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await parseToAst(options.sql);
       
       const parseData = response.data as Record<string, unknown> | undefined;
@@ -118,12 +118,12 @@ export function registerQueryCommands(program: Command): void {
   queryCmd
     .command('build')
     .description('Build SQL from AST')
-    .requiredOption('--ast <path>', 'JSON file with AST')
+    .requiredOption('--ast <data>', 'Inline JSON AST')
+    .addHelpText('after', '\nExamples:\n  $ quill query build --ast \'{"type":"select"}\'\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
-      const content = await fs.readFile(options.ast, 'utf-8');
-      const ast = JSON.parse(content);
+
+      const ast = JSON.parse(options.ast);
       
       const response = await buildFromAst(ast);
       
@@ -143,9 +143,10 @@ export function registerQueryCommands(program: Command): void {
     .command('explain')
     .description('Get query execution plan (EXPLAIN)')
     .requiredOption('--sql <query>', 'SQL query to explain')
+    .addHelpText('after', '\nExamples:\n  $ quill query explain --sql "SELECT * FROM orders"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       // EXPLAIN is executed via the query API with EXPLAIN wrapper
       const explainSql = `EXPLAIN ${options.sql}`;
       const response = await executeQuery(explainSql);

@@ -22,6 +22,7 @@ export function registerAuthCommands(program: Command): void {
     .command('login')
     .description('Authenticate with Quill API')
     .option('--token <token>', 'API token (for CI/CD and non-interactive use)')
+    .addHelpText('after', '\nExamples:\n  $ quill login\n  $ quill login --token pk_abc123\n')
     .action(withErrorHandling(async (options) => {
       if (options.token) {
         // ---- Method 1: Static API token ----
@@ -99,6 +100,7 @@ export function registerAuthCommands(program: Command): void {
   program
     .command('logout')
     .description('Clear stored credentials')
+    .addHelpText('after', '\nExamples:\n  $ quill logout\n')
     .action(withErrorHandling(async () => {
       await logout();
 
@@ -112,6 +114,7 @@ export function registerAuthCommands(program: Command): void {
   program
     .command('whoami')
     .description('Show current authentication status')
+    .addHelpText('after', '\nExamples:\n  $ quill whoami\n')
     .action(withErrorHandling(async () => {
       const state = await getAuthState();
 

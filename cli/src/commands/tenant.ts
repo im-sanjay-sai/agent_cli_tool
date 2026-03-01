@@ -22,9 +22,10 @@ export function registerTenantCommands(program: Command): void {
     .requiredOption('--dashboard <name>', 'Dashboard name (required by the API)')
     .option('--limit <n>', 'Max items to return')
     .option('--offset <n>', 'Skip first N items')
+    .addHelpText('after', '\nExamples:\n  $ quill tenant list --dashboard "Sales"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await fetchViewerTenants(options.dashboard);
       
       if (response.error) {
@@ -49,9 +50,10 @@ export function registerTenantCommands(program: Command): void {
     .command('get')
     .description('Get tenant mappings')
     .requiredOption('--dashboard <name>', 'Dashboard name (required by the API)')
+    .addHelpText('after', '\nExamples:\n  $ quill tenant mapping get --dashboard "Sales"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await fetchTenantMapping(options.dashboard);
       
       if (response.error) {
@@ -85,9 +87,10 @@ export function registerTenantCommands(program: Command): void {
     .requiredOption('--query <sql>', 'SQL mapping query')
     .requiredOption('--from-field <field>', 'Source tenant field name')
     .requiredOption('--to-field <field>', 'Target tenant field name')
+    .addHelpText('after', '\nExamples:\n  $ quill tenant validate --query "SELECT id, name FROM orgs" --from-field id --to-field name\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await validateTenantMapping(options.query, options.fromField, options.toField);
       
       if (response.error) {

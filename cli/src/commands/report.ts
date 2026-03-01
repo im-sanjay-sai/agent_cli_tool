@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import * as fs from 'fs/promises';
 // Environment concept removed -- clientId IS the environment
 import { requireAuth } from '../core/auth.js';
 import { validateSqlStructure, extractColumns } from '../utils/ast.js';
@@ -13,16 +12,50 @@ import {
 } from '../core/client.js';
 import { validateReport } from '../core/validator.js';
 import { ReportCreateInputSchema } from '../models/index.js';
-import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
-import { fromZodError, apiError } from '../output/errors.js';
+import { invalidInput, fromZodError, apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 import {
   formatReportList, formatReportShow, formatReportCreated,
   formatReportUpdated, formatReportDeleted, formatReportRun,
-  formatReportValidate, formatDeletionCancelled,
+  formatReportValidate,
 } from '../output/report-formatters.js';
+
+/**
+ * Resolve a report ID from either a positional id arg or --name + --dashboard options.
+ * If id is provided, validates it as an ObjectId and returns it.
+ * If --name is provided, requires --dashboard, searches the dashboard for the report by name.
+ */
+async function resolveReportId(
+  id: string | undefined,
+  name: string | undefined,
+  dashboardName: string | undefined,
+): Promise<string> {
+  if (id) {
+    requireValidId(id, 'report');
+    return id;
+  }
+  if (name) {
+    if (!dashboardName) {
+      throw invalidInput('--dashboard is required when using --name to identify a report');
+    }
+    const response = await fetchDashboard(dashboardName);
+    if (response.error) throw apiError(response.error);
+    const data = response.data as Record<string, unknown> | undefined;
+    const sections = (data?.sections ?? {}) as Record<string, Record<string, unknown>[]>;
+    for (const sectionReports of Object.values(sections)) {
+      for (const report of sectionReports) {
+        const reportName = (report.name as string) ?? '';
+        if (reportName.toLowerCase() === name.toLowerCase()) {
+          return (report.id ?? report._id) as string;
+        }
+      }
+    }
+    throw invalidInput(`Report "${name}" not found in dashboard "${dashboardName}". Run 'quill report list --dashboard "${dashboardName}"' to see available reports.`);
+  }
+  throw invalidInput('Provide either <id> or --name (with --dashboard)');
+}
 
 export function registerReportCommands(program: Command): void {
   const reportCmd = program
@@ -36,10 +69,11 @@ export function registerReportCommands(program: Command): void {
     .requiredOption('--dashboard <name>', 'Dashboard name')
     .option('--limit <n>', 'Max items to return')
     .option('--offset <n>', 'Skip first N items')
+    .addHelpText('after', '\nExamples:\n  $ quill report list --dashboard "Sales"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
-      
+
+
       const response = await fetchDashboard(options.dashboard);
       
       if (response.error) {
@@ -73,12 +107,15 @@ export function registerReportCommands(program: Command): void {
   reportCmd
     .command('show')
     .description('Show report details')
-    .argument('<id>', 'Report ID')
-    .action(withErrorHandling(async (id) => {
-      requireValidId(id, 'report');
+    .argument('[id]', 'Report ID')
+    .option('--name <name>', 'Report name')
+    .option('--dashboard <dashName>', 'Dashboard name (required when using --name)')
+    .addHelpText('after', '\nExamples:\n  $ quill report show 65abc...\n  $ quill report show --name "Revenue" --dashboard "Sales"\n')
+    .action(withErrorHandling(async (id, options) => {
+      const resolvedId = await resolveReportId(id, options.name, options.dashboard);
       await requireAuth();
-      
-      const response = await fetchReportInfo(id);
+
+      const response = await fetchReportInfo(resolvedId);
       
       if (response.error) {
         throw apiError(response.error);
@@ -95,13 +132,12 @@ export function registerReportCommands(program: Command): void {
     .command('create')
     .description('Create a new report')
     .requiredOption('--dashboard <name>', 'Dashboard name')
-    .requiredOption('--file <path>', 'JSON file: { name, baseSql, chartType, pivot?, dateField?, filterMap?, columns? }')
+    .requiredOption('--json <data>', 'Inline JSON: { name, baseSql, chartType, pivot?, dateField?, filterMap?, columns? }')
+    .addHelpText('after', '\nExamples:\n  $ quill report create --dashboard "Sales" --json \'{"name":"Revenue","baseSql":"SELECT ...","chartType":"line"}\'\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
-      
-      const content = await fs.readFile(options.file, 'utf-8');
-      const data = JSON.parse(content);
+
+      const data = JSON.parse(options.json);
       
       // Validate input
       const parseResult = ReportCreateInputSchema.safeParse(data);
@@ -134,7 +170,7 @@ export function registerReportCommands(program: Command): void {
         useNewNodeSql: true,
         referencedTables,
         referencedColumns,
-        columns: (data as Record<string, unknown>).columns,
+        columns: data.columns,
         // Flatten formatting fields to top-level (backend expects them flat, not nested)
         xAxisLabel: formatting?.xAxisLabel || '',
         xAxisFormat: formatting?.xAxisFormat || 'string',
@@ -153,17 +189,18 @@ export function registerReportCommands(program: Command): void {
   reportCmd
     .command('update')
     .description('Update a report')
-    .argument('<id>', 'Report ID')
-    .requiredOption('--file <path>', 'JSON file with fields to update (any report fields)')
+    .argument('[id]', 'Report ID')
+    .option('--name <name>', 'Report name')
+    .option('--dashboard <dashName>', 'Dashboard name (required when using --name)')
+    .requiredOption('--json <data>', 'Inline JSON with fields to update')
+    .addHelpText('after', '\nExamples:\n  $ quill report update 65abc... --json \'{"chartType":"bar"}\'\n')
     .action(withErrorHandling(async (id, options) => {
-      requireValidId(id, 'report');
+      const resolvedId = await resolveReportId(id, options.name, options.dashboard);
       await requireAuth();
-      
-      
-      const content = await fs.readFile(options.file, 'utf-8');
-      const updates = JSON.parse(content);
-      
-      const response = await updateReportRemote(id, updates);
+
+      const updates = JSON.parse(options.json);
+
+      const response = await updateReportRemote(resolvedId, updates);
 
       if (response.error) {
         throw apiError(response.error);
@@ -176,48 +213,42 @@ export function registerReportCommands(program: Command): void {
   reportCmd
     .command('delete')
     .description('Delete a report')
-    .argument('<id>', 'Report ID')
-    .option('--force', 'Skip confirmation')
+    .argument('[id]', 'Report ID')
+    .option('--name <name>', 'Report name')
+    .option('--dashboard <dashName>', 'Dashboard name (required when using --name)')
+    .addHelpText('after', '\nExamples:\n  $ quill report delete 65abc...\n  $ quill report delete --name "Revenue" --dashboard "Sales"\n')
     .action(withErrorHandling(async (id, options) => {
-      requireValidId(id, 'report');
+      const resolvedId = await resolveReportId(id, options.name, options.dashboard);
       await requireAuth();
-      
-      
-      if (!options.force) {
-        const confirmed = await confirmDeletion('report', id);
-        if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
-          return;
-        }
-      }
-      
-      const response = await deleteReportRemote(id);
+
+      const response = await deleteReportRemote(resolvedId);
 
       if (response.error) {
         throw apiError(response.error);
       }
 
-      output(successDeleted(id, 'report', { source: 'remote' }), formatReportDeleted);
+      output(successDeleted(resolvedId, 'report', { source: 'remote' }), formatReportDeleted);
     }));
 
   // Run report (execute query)
   reportCmd
     .command('run')
     .description('Execute report query')
-    .argument('<id>', 'Report ID')
-    .option('--filters <path>', 'JSON file with filters')
+    .argument('[id]', 'Report ID')
+    .option('--name <name>', 'Report name')
+    .option('--dashboard <dashName>', 'Dashboard name (required when using --name)')
+    .option('--filters <data>', 'Inline JSON filters')
+    .addHelpText('after', '\nExamples:\n  $ quill report run 65abc...\n  $ quill report run --name "Revenue" --dashboard "Sales"\n')
     .action(withErrorHandling(async (id, options) => {
-      requireValidId(id, 'report');
+      const resolvedId = await resolveReportId(id, options.name, options.dashboard);
       await requireAuth();
-      
-      
+
       let filters;
       if (options.filters) {
-        const content = await fs.readFile(options.filters, 'utf-8');
-        filters = JSON.parse(content);
+        filters = JSON.parse(options.filters);
       }
-      
-      const response = await fetchReport(id, filters);
+
+      const response = await fetchReport(resolvedId, filters);
       
       if (response.error) {
         throw apiError(response.error);
@@ -228,7 +259,7 @@ export function registerReportCommands(program: Command): void {
       const queryResults = (queries?.queryResults as Record<string, unknown>[] | undefined)?.[0];
 
       output(success({
-        reportId: id,
+        reportId: resolvedId,
         rows: queryResults?.rows || data?.rows || [],
         fields: queryResults?.fields || data?.fields || [],
         rowCount: queryResults?.rowCount || data?.rowCount || 0,
@@ -239,14 +270,16 @@ export function registerReportCommands(program: Command): void {
   reportCmd
     .command('validate')
     .description('Validate report configuration')
-    .argument('<id>', 'Report ID')
-    .action(withErrorHandling(async (id) => {
-      requireValidId(id, 'report');
+    .argument('[id]', 'Report ID')
+    .option('--name <name>', 'Report name')
+    .option('--dashboard <dashName>', 'Dashboard name (required when using --name)')
+    .addHelpText('after', '\nExamples:\n  $ quill report validate 65abc...\n')
+    .action(withErrorHandling(async (id, options) => {
+      const resolvedId = await resolveReportId(id, options.name, options.dashboard);
       await requireAuth();
-      
-      
+
       // Fetch report data from remote, then validate
-      const response = await fetchReportInfo(id);
+      const response = await fetchReportInfo(resolvedId);
       
       if (response.error) {
         throw apiError(response.error);

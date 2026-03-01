@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import * as fs from 'fs/promises';
 import {
   setProjectConfigValue,
   getMergedConfig,
@@ -12,14 +11,13 @@ import {
   updateClient,
   deleteClient,
 } from '../core/client.js';
-import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling } from '../output/formatter.js';
 import { success, successList, successDeleted } from '../output/success.js';
 import { apiError } from '../output/errors.js';
 import { requireValidId } from '../utils/id.js';
 import {
   formatEnvList, formatEnvShow, formatEnvUpdated,
-  formatEnvDeleted, formatEnvSwitched, formatDeletionCancelled,
+  formatEnvDeleted, formatEnvSwitched,
 } from '../output/env-formatters.js';
 
 export function registerEnvironmentCommands(program: Command): void {
@@ -34,9 +32,10 @@ export function registerEnvironmentCommands(program: Command): void {
     .description('List available environments/clients')
     .option('--limit <n>', 'Max items to return')
     .option('--offset <n>', 'Skip first N items')
+    .addHelpText('after', '\nExamples:\n  $ quill env list\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await fetchClients();
       
       if (response.error) {
@@ -69,6 +68,7 @@ export function registerEnvironmentCommands(program: Command): void {
   envCmd
     .command('show')
     .description('Show current environment/client details')
+    .addHelpText('after', '\nExamples:\n  $ quill env show\n')
     .action(withErrorHandling(async () => {
       await requireAuth();
       
@@ -94,13 +94,13 @@ export function registerEnvironmentCommands(program: Command): void {
     .command('update')
     .description('Update environment settings')
     .argument('<id>', 'Client/environment ID')
-    .requiredOption('--file <path>', 'JSON file: { name?, schemaNames?, databaseType?, databaseConnectionString? }')
+    .requiredOption('--json <data>', 'Inline JSON: { name?, schemaNames?, databaseType?, databaseConnectionString? }')
+    .addHelpText('after', '\nExamples:\n  $ quill env update 65abc... --json \'{"name":"Production","schemaNames":["public"]}\'\n')
     .action(withErrorHandling(async (id, options) => {
       requireValidId(id, 'environment');
       await requireAuth();
-      
-      const content = await fs.readFile(options.file, 'utf-8');
-      const updates = JSON.parse(content);
+
+      const updates = JSON.parse(options.json);
       
       const response = await updateClient(id, updates);
       
@@ -121,19 +121,11 @@ export function registerEnvironmentCommands(program: Command): void {
     .command('delete')
     .description('Delete an environment')
     .argument('<id>', 'Client/environment ID')
-    .option('--force', 'Skip confirmation')
-    .action(withErrorHandling(async (id, options) => {
+    .addHelpText('after', '\nExamples:\n  $ quill env delete 65abc...\n')
+    .action(withErrorHandling(async (id) => {
       requireValidId(id, 'environment');
       await requireAuth();
-      
-      if (!options.force) {
-        const confirmed = await confirmDeletion('environment', id);
-        if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
-          return;
-        }
-      }
-      
+
       const response = await deleteClient(id);
 
       if (response.error) {
@@ -148,6 +140,7 @@ export function registerEnvironmentCommands(program: Command): void {
     .command('switch')
     .description('Switch to a different environment/client by name or ID')
     .argument('<nameOrId>', 'Environment name or client ID')
+    .addHelpText('after', '\nExamples:\n  $ quill env switch "production"\n  $ quill env switch 65abc...\n')
     .action(withErrorHandling(async (nameOrId) => {
       await requireAuth();
       

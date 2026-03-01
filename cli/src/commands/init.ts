@@ -15,6 +15,7 @@ export function registerInitCommand(program: Command): void {
     .option('--client-id <id>', 'Quill client ID for this project')
     .option('--query-endpoint <url>', 'Custom query endpoint URL')
     .option('--skip-connection-test', 'Skip the database connection test')
+    .addHelpText('after', '\nExamples:\n  $ quill init --token pk_abc123 --client-id 65abc... --skip-connection-test\n')
     .action(withErrorHandling(async (options) => {
       const steps: Array<{ step: string; status: 'success' | 'skipped' | 'failed'; message: string }> = [];
 

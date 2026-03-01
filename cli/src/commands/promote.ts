@@ -30,12 +30,13 @@ export function registerPromoteCommands(program: Command): void {
     .option('--auto-resolve', 'Automatically resolve conflicts (e.g. add missing tables)')
     .option('--skip-warning', 'Skip promotion warnings')
     .option('--dry-run', 'Preview what would be promoted without making changes')
+    .addHelpText('after', '\nExamples:\n  $ quill promote dashboard "Sales" --from staging --to production\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      
+
       const from = await resolveClientId(options.from);
       const to = await resolveClientId(options.to);
-      
+
       if (from.clientId === to.clientId) {
         throw invalidInput('--from and --to must be different environments for dashboard promotion');
       }
@@ -84,9 +85,10 @@ export function registerPromoteCommands(program: Command): void {
     .option('--auto-resolve', 'Automatically add missing virtual tables (cross-env only)')
     .option('--skip-warning', 'Skip promotion warnings')
     .option('--dry-run', 'Preview what would be promoted without making changes')
+    .addHelpText('after', '\nExamples:\n  $ quill promote report 65abc... --to-dashboard "Sales" --from staging --to production\n')
     .action(withErrorHandling(async (id, options) => {
       await requireAuth();
-      
+
       const from = await resolveClientId(options.from);
       const to = await resolveClientId(options.to);
 
@@ -134,12 +136,13 @@ export function registerPromoteCommands(program: Command): void {
     .requiredOption('--to <nameOrId>', 'Target environment name or client ID')
     .option('--skip-warning', 'Skip promotion warnings')
     .option('--dry-run', 'Preview what would be promoted without making changes')
+    .addHelpText('after', '\nExamples:\n  $ quill promote vt "orders_view" --from staging --to production\n')
     .action(withErrorHandling(async (name, options) => {
       await requireAuth();
-      
+
       const from = await resolveClientId(options.from);
       const to = await resolveClientId(options.to);
-      
+
       if (from.clientId === to.clientId) {
         throw invalidInput('--from and --to must be different environments for VT promotion');
       }

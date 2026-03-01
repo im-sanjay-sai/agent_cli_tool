@@ -11,7 +11,6 @@ import {
 } from '../core/client.js';
 import { validateVirtualTable } from '../core/validator.js';
 import { VirtualTableCreateInputSchema } from '../models/index.js';
-import { confirmDeletion } from '../utils/confirm.js';
 import { output, withErrorHandling, verbose } from '../output/formatter.js';
 import { success, successList, successCreated, successUpdated, successDeleted } from '../output/success.js';
 import { invalidInput, fromZodError, apiError } from '../output/errors.js';
@@ -19,7 +18,7 @@ import { requireValidId } from '../utils/id.js';
 import {
   formatVtList, formatVtShow, formatVtCreated,
   formatVtUpdated, formatVtDeleted, formatVtTest,
-  formatVtValidate, formatDeletionCancelled,
+  formatVtValidate,
 } from '../output/vt-formatters.js';
 
 /**
@@ -36,6 +35,33 @@ async function getVtFromSchema(vtId: string): Promise<Record<string, unknown> | 
   return (allTables.find(t => (t._id as string) === vtId || (t.id as string) === vtId) as Record<string, unknown>) ?? null;
 }
 
+/**
+ * Resolve a virtual table ID from either a positional id arg or --name option.
+ * If id is provided, validates it as an ObjectId and returns it.
+ * If --name is provided, looks up the VT by name and returns its _id.
+ */
+async function resolveVtId(id: string | undefined, name: string | undefined): Promise<string> {
+  if (id) {
+    requireValidId(id, 'virtual table');
+    return id;
+  }
+  if (name) {
+    const response = await listVirtualTablesRemote();
+    if (response.error) throw apiError(response.error);
+    const data = response.data as Record<string, unknown> | undefined;
+    const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
+    const vt = allTables.find(t =>
+      ((t.name as string) ?? '').toLowerCase() === name.toLowerCase() ||
+      ((t.displayName as string) ?? '').toLowerCase() === name.toLowerCase()
+    );
+    if (!vt) {
+      throw invalidInput(`Virtual table "${name}" not found. Run 'quill vt list' to see available tables.`);
+    }
+    return (vt._id ?? vt.id) as string;
+  }
+  throw invalidInput('Provide either <id> or --name');
+}
+
 export function registerVirtualTableCommands(program: Command): void {
   const vtCmd = program
     .command('virtual-table')
@@ -48,9 +74,10 @@ export function registerVirtualTableCommands(program: Command): void {
     .description('List all virtual tables')
     .option('--limit <n>', 'Max items to return')
     .option('--offset <n>', 'Skip first N items')
+    .addHelpText('after', '\nExamples:\n  $ quill vt list\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
+
       const response = await listVirtualTablesRemote();
       
       if (response.error) {
@@ -81,36 +108,16 @@ export function registerVirtualTableCommands(program: Command): void {
   vtCmd
     .command('show')
     .description('Show virtual table details')
-    .argument('<id>', 'Virtual table ID')
-    .action(withErrorHandling(async (id) => {
-      requireValidId(id, 'virtual table');
+    .argument('[id]', 'Virtual table ID')
+    .option('--name <name>', 'Virtual table name')
+    .addHelpText('after', '\nExamples:\n  $ quill vt show 65abc...\n  $ quill vt show --name "orders_view"\n')
+    .action(withErrorHandling(async (id, options) => {
+      const resolvedId = await resolveVtId(id, options.name);
       await requireAuth();
 
-      console.error('[debug:vt-show] running latest build — fetching schema...');
-      // Fetch all tables from schema listing (same call vt list uses)
-      const response = await listVirtualTablesRemote();
-
-      // Debug: dump raw response shape BEFORE error check
-      console.error('[debug:vt-show] response.error:', JSON.stringify(response.error));
-      console.error('[debug:vt-show] response.data type:', typeof response.data);
-      console.error('[debug:vt-show] response.data keys:', response.data && typeof response.data === 'object' ? Object.keys(response.data as Record<string, unknown>) : String(response.data));
-
-      if (response.error) {
-        const errMsg = typeof response.error === 'string'
-          ? response.error
-          : (response.error as Record<string, unknown>)?.message as string ?? JSON.stringify(response.error);
-        throw apiError(errMsg);
-      }
-
-      const data = response.data as Record<string, unknown> | undefined;
-      const allTables = (data?.tables as Record<string, unknown>[]) ?? [];
-      console.error('[debug:vt-show] allTables count:', allTables.length);
-
-      const vt = allTables.find(t => (t._id as string) === id || (t.id as string) === id);
-      console.error('[debug:vt-show] found VT:', vt ? Object.keys(vt).join(', ') : 'null');
-
+      const vt = await getVtFromSchema(resolvedId);
       if (!vt) {
-        throw apiError(`Virtual table '${id}' not found in schema (${allTables.length} tables available)`);
+        throw apiError(`Virtual table '${resolvedId}' not found`);
       }
 
       output(success(vt, { source: 'remote' }), formatVtShow);
@@ -123,10 +130,11 @@ export function registerVirtualTableCommands(program: Command): void {
     .requiredOption('--name <name>', 'Virtual table name')
     .requiredOption('--sql <query>', 'SQL query')
     .option('--owner-fields <fields>', 'Comma-separated owner tenant fields')
+    .addHelpText('after', '\nExamples:\n  $ quill vt create --name orders_view --sql "SELECT * FROM orders"\n')
     .action(withErrorHandling(async (options) => {
       await requireAuth();
-      
-      
+
+
       const input = {
         name: options.name,
         sql: options.sql,
@@ -144,8 +152,8 @@ export function registerVirtualTableCommands(program: Command): void {
       const vtWarnings: string[] = [];
       try {
         const queryResult = await queryVirtualTable(parseResult.data.sql);
-        const queryData = queryResult.data as Record<string, unknown> | undefined;
-        const queryResults = (queryData?.queryResults as Record<string, unknown>[] | undefined)?.[0];
+        const queries = queryResult.queries as Record<string, unknown> | undefined;
+        const queryResults = (queries?.queryResults as Record<string, unknown>[] | undefined)?.[0];
         columns = queryResults?.fields as unknown[] | undefined;
         if (!columns) {
           vtWarnings.push('Could not extract column metadata from query -- virtual table will be created without column info');
@@ -174,28 +182,29 @@ export function registerVirtualTableCommands(program: Command): void {
   vtCmd
     .command('update')
     .description('Update a virtual table')
-    .argument('<id>', 'Virtual table ID')
-    .option('--name <name>', 'New name')
+    .argument('[id]', 'Virtual table ID')
+    .option('--name <name>', 'Virtual table name (to identify which VT to update)')
+    .option('--new-name <newName>', 'New name for the virtual table')
     .option('--sql <query>', 'New SQL query')
     .option('--owner-fields <fields>', 'Comma-separated owner tenant fields')
+    .addHelpText('after', '\nExamples:\n  $ quill vt update 65abc... --sql "SELECT id FROM orders"\n  $ quill vt update --name "orders_view" --new-name "orders_v2"\n')
     .action(withErrorHandling(async (id, options) => {
-      requireValidId(id, 'virtual table');
+      const resolvedId = await resolveVtId(id, options.name);
       await requireAuth();
-      
-      
+
       const updates: Record<string, unknown> = {};
-      
-      if (options.name) updates.name = options.name;
+
+      if (options.newName) updates.name = options.newName;
       if (options.sql) updates.sql = options.sql;
       if (options.ownerFields) {
         updates.ownerTenantFields = options.ownerFields.split(',').map((f: string) => f.trim());
       }
       
       if (Object.keys(updates).length === 0) {
-        throw invalidInput('No updates specified. Use --name, --sql, or --owner-fields');
+        throw invalidInput('No updates specified. Use --new-name, --sql, or --owner-fields');
       }
-      
-      const response = await updateVirtualTableRemote(id, updates);
+
+      const response = await updateVirtualTableRemote(resolvedId, updates);
       
       if (response.error) {
         throw apiError(response.error);
@@ -208,42 +217,36 @@ export function registerVirtualTableCommands(program: Command): void {
   vtCmd
     .command('delete')
     .description('Delete a virtual table')
-    .argument('<id>', 'Virtual table ID')
-    .option('--force', 'Skip confirmation')
+    .argument('[id]', 'Virtual table ID')
+    .option('--name <name>', 'Virtual table name')
+    .addHelpText('after', '\nExamples:\n  $ quill vt delete 65abc...\n  $ quill vt delete --name "orders_view"\n')
     .action(withErrorHandling(async (id, options) => {
-      requireValidId(id, 'virtual table');
+      const resolvedId = await resolveVtId(id, options.name);
       await requireAuth();
-      
-      
-      if (!options.force) {
-        const confirmed = await confirmDeletion('virtual table', id);
-        if (!confirmed) {
-          output(success({ message: 'Deletion cancelled' }), formatDeletionCancelled);
-          return;
-        }
-      }
-      
-      const response = await deleteVirtualTableRemote(id);
+
+      const response = await deleteVirtualTableRemote(resolvedId);
       
       if (response.error) {
         throw apiError(response.error);
       }
       
-      output(successDeleted(id, 'virtual_table', { source: 'remote' }), formatVtDeleted);
+      output(successDeleted(resolvedId, 'virtual_table', { source: 'remote' }), formatVtDeleted);
     }));
 
   // Test virtual table
   vtCmd
     .command('test')
     .description('Test virtual table query')
-    .argument('<id>', 'Virtual table ID')
-    .action(withErrorHandling(async (id) => {
-      requireValidId(id, 'virtual table');
+    .argument('[id]', 'Virtual table ID')
+    .option('--name <name>', 'Virtual table name')
+    .addHelpText('after', '\nExamples:\n  $ quill vt test --name "orders_view"\n')
+    .action(withErrorHandling(async (id, options) => {
+      const resolvedId = await resolveVtId(id, options.name);
       await requireAuth();
-      
+
       // Backend expects table NAME, not ID. Resolve from metadata.
-      const vt = await getVtFromSchema(id);
-      const vtName = (vt?.name ?? vt?.displayName ?? id) as string;
+      const vt = await getVtFromSchema(resolvedId);
+      const vtName = (vt?.name ?? vt?.displayName ?? resolvedId) as string;
       const response = await testVirtualTable(vtName);
       
       if (response.error) {
@@ -251,7 +254,7 @@ export function registerVirtualTableCommands(program: Command): void {
       }
       
       output(success({
-        id,
+        id: resolvedId,
         ...response.data as Record<string, unknown>,
       }, { source: 'remote' }), formatVtTest);
     }));
@@ -260,14 +263,16 @@ export function registerVirtualTableCommands(program: Command): void {
   vtCmd
     .command('validate')
     .description('Validate virtual table configuration')
-    .argument('<id>', 'Virtual table ID')
-    .action(withErrorHandling(async (id) => {
-      requireValidId(id, 'virtual table');
+    .argument('[id]', 'Virtual table ID')
+    .option('--name <name>', 'Virtual table name')
+    .addHelpText('after', '\nExamples:\n  $ quill vt validate --name "orders_view"\n')
+    .action(withErrorHandling(async (id, options) => {
+      const resolvedId = await resolveVtId(id, options.name);
       await requireAuth();
 
-      const vt = await getVtFromSchema(id);
+      const vt = await getVtFromSchema(resolvedId);
       if (!vt) {
-        throw apiError(`Virtual table '${id}' not found`);
+        throw apiError(`Virtual table '${resolvedId}' not found`);
       }
       const result = await validateVirtualTable(vt);
       
